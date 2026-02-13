@@ -1,0 +1,27 @@
+# Data files (too large for git)
+*.csv
+*.duckdb
+*.duckdb.wal
+*.arrow
+*.zip
+*.txt
+!requirements.txt
+
+# Node
+node_modules/
+dist/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Env
+.env
