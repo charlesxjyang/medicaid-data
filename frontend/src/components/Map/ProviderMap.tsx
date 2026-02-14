@@ -127,7 +127,7 @@ export function ProviderMap() {
           getRadius: (d) => radiusForPaid(d.total_paid),
           radiusUnits: "pixels" as const,
           getFillColor: DOT_COLOR,
-          pickable: !selectedProcedure && !selectedNpi,
+          pickable: !selectedProcedure,
           opacity: selectedProcedure ? 0.15 : 0.6,
           updateTriggers: {
             opacity: [selectedProcedure],
