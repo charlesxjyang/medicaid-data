@@ -2,6 +2,7 @@ import { useState } from "react";
 import { DashboardContext } from "./store/dashboard";
 import { ProviderMap } from "./components/Map/ProviderMap";
 import { SpendingTimeSeries } from "./components/Charts/SpendingTimeSeries";
+import { ProcedureReimbursementChart } from "./components/Charts/ProcedureReimbursementChart";
 import { SearchBox } from "./components/Sidebar/SearchBox";
 import { StateFilter } from "./components/Filters/StateFilter";
 import { ProviderDetail } from "./components/Sidebar/ProviderDetail";
@@ -65,6 +66,7 @@ function App() {
           <div className="content">
             <ProviderMap />
             <SpendingTimeSeries />
+            <ProcedureReimbursementChart />
           </div>
         </div>
       </div>

@@ -93,6 +93,18 @@ export interface ProcedureBenchmark {
   state_per_claim: number | null;
 }
 
+export interface ProcedureAvgReimbursement {
+  national_avg: number | null;
+  providers: {
+    npi: string;
+    name: string;
+    state: string | null;
+    avg_per_claim: number;
+    total_claims: number;
+    total_paid: number;
+  }[];
+}
+
 export interface MapProvider {
   npi: string;
   name: string;

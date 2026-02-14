@@ -409,6 +409,81 @@ tbody td {
   50% { opacity: 0.7; }
 }
 
+/* Procedure Reimbursement Chart */
+.reimb-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.reimb-controls {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.reimb-search {
+  flex: 1;
+}
+.reimb-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+.reimb-sort {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.reimb-sort button {
+  padding: 8px 14px;
+  background: var(--surface);
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-weight: 500;
+}
+.reimb-sort button:first-child {
+  border-right: 1px solid var(--border);
+}
+.reimb-sort button.active {
+  background: var(--accent);
+  color: white;
+}
+.reimb-sort button:hover:not(.active) {
+  background: var(--surface-hover);
+}
+.reimb-empty {
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.reimb-tooltip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  line-height: 1.6;
+}
+.reimb-tooltip-name {
+  font-weight: 600;
+  font-size: 13px;
+}
+.reimb-tooltip-val {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 14px;
+}
+
 /* Recharts overrides */
 .recharts-cartesian-grid-horizontal line,
 .recharts-cartesian-grid-vertical line {

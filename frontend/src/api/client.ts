@@ -9,6 +9,7 @@ import type {
   ProcedureDetail,
   ProcedureProvider,
   ProcedureBenchmark,
+  ProcedureAvgReimbursement,
   MapProvider,
 } from "../types/api";
 
@@ -54,6 +55,10 @@ export const api = {
     get<ProcedureProvider[]>(`/api/procedures/${encodeURIComponent(code)}/providers`),
   procedureTimeseries: (code: string) =>
     get<MonthlyData[]>(`/api/procedures/${encodeURIComponent(code)}/timeseries`),
+  procedureAvgReimbursement: (code: string, sort: "asc" | "desc" = "desc") =>
+    get<ProcedureAvgReimbursement>(
+      `/api/procedures/${encodeURIComponent(code)}/avg-reimbursement?sort=${sort}&limit=50`
+    ),
   procedureBenchmarks: (codes: string, state?: string) =>
     get<ProcedureBenchmark[]>(
       `/api/procedures/benchmarks?codes=${encodeURIComponent(codes)}${state ? `&state=${state}` : ""}`

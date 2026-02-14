@@ -171,6 +171,53 @@ def procedure_providers(code: str, limit: int = 25):
     ]
 
 
+@router.get("/{code}/avg-reimbursement")
+def procedure_avg_reimbursement(
+    code: str,
+    sort: str = Query("desc", pattern="^(asc|desc)$"),
+    limit: int = 50,
+):
+    """Top providers by avg $/claim for a procedure, plus national average."""
+    db = get_db()
+    direction = "ASC" if sort == "asc" else "DESC"
+    rows = db.execute(f"""
+        SELECT
+            p.npi,
+            COALESCE(m.name, p.npi) AS name,
+            m.state,
+            p.total_paid / NULLIF(p.total_claims, 0) AS avg_per_claim,
+            p.total_claims,
+            p.total_paid
+        FROM agg_provider_procedure p
+        LEFT JOIN map_providers m ON m.npi = p.npi
+        WHERE p.hcpcs_code = ?
+          AND p.total_claims > 0
+        ORDER BY avg_per_claim {direction}
+        LIMIT ?
+    """, [code, limit]).fetchall()
+
+    nat = db.execute("""
+        SELECT SUM(total_paid) / NULLIF(SUM(total_claims), 0)
+        FROM agg_provider_procedure
+        WHERE hcpcs_code = ? AND total_claims > 0
+    """, [code]).fetchone()
+
+    return {
+        "national_avg": nat[0] if nat else None,
+        "providers": [
+            {
+                "npi": r[0],
+                "name": r[1],
+                "state": r[2],
+                "avg_per_claim": r[3],
+                "total_claims": r[4],
+                "total_paid": r[5],
+            }
+            for r in rows
+        ],
+    }
+
+
 @router.get("/{code}/timeseries")
 def procedure_timeseries(code: str):
     """Monthly spending for one procedure code."""
