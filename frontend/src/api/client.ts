@@ -78,4 +78,14 @@ export const api = {
     const qs = params.toString();
     return get<MapProvider[]>(`/api/map/providers${qs ? `?${qs}` : ""}`);
   },
+
+  mapProvidersByProcedure: (code: string, state?: string, limit = 2000) => {
+    const params = new URLSearchParams();
+    if (state) params.set("state", state);
+    params.set("limit", String(limit));
+    const qs = params.toString();
+    return get<MapProvider[]>(
+      `/api/map/providers/procedure/${encodeURIComponent(code)}${qs ? `?${qs}` : ""}`
+    );
+  },
 };

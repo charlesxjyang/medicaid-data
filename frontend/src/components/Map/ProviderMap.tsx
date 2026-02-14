@@ -22,6 +22,7 @@ const MAP_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json
 
 const DOT_COLOR: [number, number, number] = [37, 99, 235];
 const HIGHLIGHT_COLOR: [number, number, number] = [255, 0, 0];
+const PROCEDURE_COLOR: [number, number, number] = [234, 88, 12]; // orange
 
 // Linear scale: largest providers (~$500M) get ~30px, smallest get 2px
 const MAX_PAID = 5e8;
@@ -30,17 +31,26 @@ function radiusForPaid(paid: number): number {
 }
 
 export function ProviderMap() {
-  const { selectedState, selectedNpi, setSelectedNpi } = useDashboard();
+  const { selectedState, selectedNpi, selectedProcedure, setSelectedNpi } = useDashboard();
   const [viewState, setViewState] = useState(INITIAL_VIEW);
   const [tooltip, setTooltip] = useState<{
     x: number;
     y: number;
     provider: MapProvider;
+    isProcedure?: boolean;
   } | null>(null);
 
   const { data, loading } = useApi(
     () => api.mapProviders({ state: selectedState ?? undefined, limit: 5000 }),
     [selectedState]
+  );
+
+  const { data: procData } = useApi(
+    () =>
+      selectedProcedure
+        ? api.mapProvidersByProcedure(selectedProcedure, selectedState ?? undefined)
+        : Promise.resolve(null),
+    [selectedProcedure, selectedState]
   );
 
   // Fly to selected provider
@@ -76,30 +86,64 @@ export function ProviderMap() {
     setViewState(vs);
   }, []);
 
-  const layer = useMemo(() => {
-    if (!data) return null;
-    return new ScatterplotLayer<MapProvider>({
-      id: "providers",
-      data,
-      getPosition: (d) => [d.lng, d.lat],
-      getRadius: (d) => radiusForPaid(d.total_paid),
-      radiusUnits: "pixels" as const,
-      getFillColor: (d) =>
-        selectedNpi && d.npi === selectedNpi ? HIGHLIGHT_COLOR : DOT_COLOR,
-      pickable: true,
-      opacity: 0.6,
-      updateTriggers: {
-        getFillColor: [selectedNpi],
-      },
-      onClick: ({ object }) => {
-        if (object) setSelectedNpi(object.npi);
-      },
-      onHover: ({ object, x, y }) => {
-        if (object) setTooltip({ x, y, provider: object });
-        else setTooltip(null);
-      },
-    });
-  }, [data, selectedNpi, setSelectedNpi]);
+  const layers = useMemo(() => {
+    const result = [];
+
+    // Base layer: all providers (blue, dimmed when procedure is selected)
+    if (data) {
+      result.push(
+        new ScatterplotLayer<MapProvider>({
+          id: "providers",
+          data,
+          getPosition: (d) => [d.lng, d.lat],
+          getRadius: (d) => radiusForPaid(d.total_paid),
+          radiusUnits: "pixels" as const,
+          getFillColor: (d) =>
+            selectedNpi && d.npi === selectedNpi ? HIGHLIGHT_COLOR : DOT_COLOR,
+          pickable: !selectedProcedure,
+          opacity: selectedProcedure ? 0.15 : 0.6,
+          updateTriggers: {
+            getFillColor: [selectedNpi],
+            opacity: [selectedProcedure],
+          },
+          onClick: ({ object }) => {
+            if (object) setSelectedNpi(object.npi);
+          },
+          onHover: ({ object, x, y }) => {
+            if (!selectedProcedure) {
+              if (object) setTooltip({ x, y, provider: object });
+              else setTooltip(null);
+            }
+          },
+        })
+      );
+    }
+
+    // Procedure layer: providers for selected procedure (orange)
+    if (procData && selectedProcedure) {
+      result.push(
+        new ScatterplotLayer<MapProvider>({
+          id: "procedure-providers",
+          data: procData,
+          getPosition: (d) => [d.lng, d.lat],
+          getRadius: (d) => radiusForPaid(d.total_paid),
+          radiusUnits: "pixels" as const,
+          getFillColor: PROCEDURE_COLOR,
+          pickable: true,
+          opacity: 0.7,
+          onClick: ({ object }) => {
+            if (object) setSelectedNpi(object.npi);
+          },
+          onHover: ({ object, x, y }) => {
+            if (object) setTooltip({ x, y, provider: object, isProcedure: true });
+            else setTooltip(null);
+          },
+        })
+      );
+    }
+
+    return result;
+  }, [data, procData, selectedNpi, selectedProcedure, setSelectedNpi]);
 
   return (
     <div className="map-container">
@@ -108,7 +152,7 @@ export function ProviderMap() {
         viewState={viewState}
         onViewStateChange={handleViewStateChange}
         controller={true}
-        layers={layer ? [layer] : []}
+        layers={layers}
         getTooltip={null}
       >
         <Map mapStyle={MAP_STYLE} />
@@ -123,6 +167,25 @@ export function ProviderMap() {
           {tooltip.provider.city}, {tooltip.provider.state}
           <br />
           {fmtDollars(tooltip.provider.total_paid)}
+          {tooltip.isProcedure && (
+            <>
+              <br />
+              {tooltip.provider.total_claims.toLocaleString()} claims
+            </>
+          )}
+        </div>
+      )}
+      {selectedProcedure && (
+        <div className="map-legend">
+          <div className="map-legend-item">
+            <span className="map-legend-dot" style={{ background: `rgb(${PROCEDURE_COLOR.join(",")})` }} />
+            Procedure providers
+          </div>
+          <div className="map-legend-item">
+            <span className="map-legend-dot" style={{ background: `rgb(${DOT_COLOR.join(",")})`, opacity: 0.3 }} />
+            All providers
+          </div>
+          <div className="map-legend-hint">Dot size = total reimbursements</div>
         </div>
       )}
     </div>

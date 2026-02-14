@@ -91,3 +91,41 @@ def providers_json(
         }
         for r in rows
     ]
+
+
+@router.get("/providers/procedure/{code}")
+def providers_by_procedure(
+    code: str,
+    state: Optional[str] = None,
+    limit: int = 2000,
+):
+    """Providers performing a specific procedure, with location and spending."""
+    db = get_db()
+    params: list = [code]
+    state_filter = ""
+    if state:
+        state_filter = "AND m.state = ?"
+        params.append(state)
+    params.append(limit)
+
+    rows = db.execute(f"""
+        SELECT
+            m.npi, m.name, m.state, m.city, m.lat, m.lng,
+            p.total_paid, p.total_claims, p.total_beneficiaries
+        FROM agg_provider_procedure p
+        JOIN map_providers m ON m.npi = p.npi
+        WHERE p.hcpcs_code = ?
+          AND m.lat IS NOT NULL AND m.lng IS NOT NULL
+          {state_filter}
+        ORDER BY p.total_paid DESC
+        LIMIT ?
+    """, params).fetchall()
+
+    return [
+        {
+            "npi": r[0], "name": r[1], "state": r[2], "city": r[3],
+            "lat": r[4], "lng": r[5], "total_paid": r[6],
+            "total_claims": r[7], "total_beneficiaries": r[8],
+        }
+        for r in rows
+    ]
