@@ -174,12 +174,18 @@ def procedure_providers(code: str, limit: int = 25):
 @router.get("/{code}/avg-reimbursement")
 def procedure_avg_reimbursement(
     code: str,
-    sort: str = Query("desc", pattern="^(asc|desc)$"),
+    state: Optional[str] = None,
     limit: int = 50,
 ):
-    """Top providers by avg $/claim for a procedure, plus national average."""
+    """Top providers by avg $/claim for a procedure, plus national/state average."""
     db = get_db()
-    direction = "ASC" if sort == "asc" else "DESC"
+    params: list = [code]
+    state_filter = ""
+    if state:
+        state_filter = "AND m.state = ?"
+        params.append(state)
+    params.append(limit)
+
     rows = db.execute(f"""
         SELECT
             p.npi,
@@ -192,9 +198,10 @@ def procedure_avg_reimbursement(
         LEFT JOIN map_providers m ON m.npi = p.npi
         WHERE p.hcpcs_code = ?
           AND p.total_claims > 0
-        ORDER BY avg_per_claim {direction}
+          {state_filter}
+        ORDER BY avg_per_claim DESC
         LIMIT ?
-    """, [code, limit]).fetchall()
+    """, params).fetchall()
 
     nat = db.execute("""
         SELECT SUM(total_paid) / NULLIF(SUM(total_claims), 0)
@@ -202,8 +209,19 @@ def procedure_avg_reimbursement(
         WHERE hcpcs_code = ? AND total_claims > 0
     """, [code]).fetchone()
 
+    state_avg = None
+    if state:
+        sa = db.execute("""
+            SELECT SUM(p.total_paid) / NULLIF(SUM(p.total_claims), 0)
+            FROM agg_provider_procedure p
+            JOIN map_providers m ON m.npi = p.npi
+            WHERE p.hcpcs_code = ? AND p.total_claims > 0 AND m.state = ?
+        """, [code, state]).fetchone()
+        state_avg = sa[0] if sa else None
+
     return {
         "national_avg": nat[0] if nat else None,
+        "state_avg": state_avg,
         "providers": [
             {
                 "npi": r[0],

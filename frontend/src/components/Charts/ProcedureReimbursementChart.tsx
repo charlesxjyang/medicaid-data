@@ -16,12 +16,19 @@ import { useApi } from "../../hooks/useApi";
 import { useDashboard } from "../../store/dashboard";
 import type { ProcedureSummary } from "../../types/api";
 
+const STATES = [
+  "AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN",
+  "IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH",
+  "NJ","NM","NY","NC","ND","OH","OK","OR","PA","PR","RI","SC","SD","TN","TX",
+  "UT","VT","VA","WA","WV","WI","WY",
+];
+
 export function ProcedureReimbursementChart() {
   const { selectedProcedure, setSelectedNpi } = useDashboard();
 
   const [localCode, setLocalCode] = useState<string | null>(null);
   const [localLabel, setLocalLabel] = useState("");
-  const [sort, setSort] = useState<"asc" | "desc">("desc");
+  const [chartState, setChartState] = useState<string | undefined>(undefined);
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ProcedureSummary[]>([]);
@@ -32,7 +39,6 @@ export function ProcedureReimbursementChart() {
   useEffect(() => {
     if (selectedProcedure) {
       setLocalCode(selectedProcedure);
-      // Fetch procedure detail to get the label
       api.procedureDetail(selectedProcedure).then((d) => {
         setLocalLabel(`${d.hcpcs_code} — ${d.description || d.hcpcs_code}`);
       });
@@ -42,10 +48,10 @@ export function ProcedureReimbursementChart() {
   const activeCode = localCode;
 
   const fetcher = useCallback(
-    () => (activeCode ? api.procedureAvgReimbursement(activeCode, sort) : Promise.resolve(null)),
-    [activeCode, sort]
+    () => (activeCode ? api.procedureAvgReimbursement(activeCode, chartState) : Promise.resolve(null)),
+    [activeCode, chartState]
   );
-  const { data, loading } = useApi(fetcher, [activeCode, sort]);
+  const { data, loading } = useApi(fetcher, [activeCode, chartState]);
 
   function handleInput(value: string) {
     setQuery(value);
@@ -71,7 +77,6 @@ export function ProcedureReimbursementChart() {
 
   function handleBarClick(npi: string) {
     setSelectedNpi(npi);
-    // Scroll to top so the user sees the provider detail
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -117,19 +122,16 @@ export function ProcedureReimbursementChart() {
             )}
           </div>
           {activeCode && (
-            <div className="reimb-sort">
-              <button
-                className={sort === "desc" ? "active" : ""}
-                onClick={() => setSort("desc")}
+            <div className="filter-group" style={{ minWidth: 120 }}>
+              <select
+                value={chartState ?? ""}
+                onChange={(e) => setChartState(e.target.value || undefined)}
               >
-                Highest
-              </button>
-              <button
-                className={sort === "asc" ? "active" : ""}
-                onClick={() => setSort("asc")}
-              >
-                Lowest
-              </button>
+                <option value="">All States</option>
+                {STATES.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
             </div>
           )}
         </div>
@@ -146,6 +148,7 @@ export function ProcedureReimbursementChart() {
       ) : loading || !data ? (
         <div className="chart-skeleton" style={{ height: 400 }} />
       ) : (
+        <>
         <ResponsiveContainer width="100%" height={400}>
           <BarChart
             data={chartData}
@@ -182,13 +185,14 @@ export function ProcedureReimbursementChart() {
                 stroke="#ef4444"
                 strokeDasharray="6 4"
                 strokeWidth={2}
-                label={{
-                  value: `National avg: ${fmtDollars(data.national_avg)}`,
-                  position: "insideTopRight",
-                  fill: "#ef4444",
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}
+              />
+            )}
+            {data.state_avg && chartState && (
+              <ReferenceLine
+                y={data.state_avg}
+                stroke="#f59e0b"
+                strokeDasharray="4 3"
+                strokeWidth={2}
               />
             )}
             <Bar
@@ -204,6 +208,19 @@ export function ProcedureReimbursementChart() {
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+        <div style={{ display: "flex", gap: 20, justifyContent: "center", fontSize: 12, marginTop: 4 }}>
+          {data.national_avg && (
+            <span style={{ color: "#ef4444", fontWeight: 600 }}>
+              — — National avg: {fmtDollars(data.national_avg)}
+            </span>
+          )}
+          {data.state_avg && chartState && (
+            <span style={{ color: "#f59e0b", fontWeight: 600 }}>
+              — — {chartState} avg: {fmtDollars(data.state_avg)}
+            </span>
+          )}
+        </div>
+        </>
       )}
     </div>
   );

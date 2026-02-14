@@ -14,6 +14,8 @@ app.add_middleware(
         "http://localhost:5173",
         "http://localhost:3000",
         "https://medicaid-dashboard.vercel.app",
+        "https://medicaidopendata.org",
+        "https://www.medicaidopendata.org",
         os.environ.get("CORS_ORIGIN", ""),
     ],
     allow_methods=["GET"],

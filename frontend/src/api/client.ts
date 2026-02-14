@@ -5,6 +5,7 @@ import type {
   ProviderSummary,
   ProviderDetail,
   ProviderProcedure,
+  ProviderProcedureTimeseries,
   ProcedureSummary,
   ProcedureDetail,
   ProcedureProvider,
@@ -40,6 +41,8 @@ export const api = {
     get<MonthlyData[]>(`/api/providers/${npi}/timeseries`),
   providerProcedures: (npi: string) =>
     get<ProviderProcedure[]>(`/api/providers/${npi}/procedures`),
+  providerProcedureTimeseries: (npi: string) =>
+    get<ProviderProcedureTimeseries>(`/api/providers/${npi}/procedure-timeseries`),
 
   searchProcedures: (q: string) =>
     get<ProcedureSummary[]>(
@@ -55,9 +58,9 @@ export const api = {
     get<ProcedureProvider[]>(`/api/procedures/${encodeURIComponent(code)}/providers`),
   procedureTimeseries: (code: string) =>
     get<MonthlyData[]>(`/api/procedures/${encodeURIComponent(code)}/timeseries`),
-  procedureAvgReimbursement: (code: string, sort: "asc" | "desc" = "desc") =>
+  procedureAvgReimbursement: (code: string, state?: string) =>
     get<ProcedureAvgReimbursement>(
-      `/api/procedures/${encodeURIComponent(code)}/avg-reimbursement?sort=${sort}&limit=50`
+      `/api/procedures/${encodeURIComponent(code)}/avg-reimbursement?limit=50${state ? `&state=${state}` : ""}`
     ),
   procedureBenchmarks: (codes: string, state?: string) =>
     get<ProcedureBenchmark[]>(

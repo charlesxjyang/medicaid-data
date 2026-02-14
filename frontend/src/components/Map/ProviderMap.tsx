@@ -7,7 +7,7 @@ import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
 import { fmtDollars } from "../../utils";
-import type { MapProvider } from "../../types/api";
+import type { MapProvider, ProviderDetail } from "../../types/api";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 const INITIAL_VIEW = {
@@ -28,6 +28,21 @@ const PROCEDURE_COLOR: [number, number, number] = [234, 88, 12]; // orange
 const MAX_PAID = 5e8;
 function radiusForPaid(paid: number): number {
   return 2 + (Math.min(paid, MAX_PAID) / MAX_PAID) * 28;
+}
+
+function detailToMapProvider(d: ProviderDetail): MapProvider | null {
+  if (!d.lat || !d.lng) return null;
+  return {
+    npi: d.npi,
+    name: d.name,
+    state: d.state,
+    city: d.city,
+    lat: d.lat,
+    lng: d.lng,
+    total_paid: d.total_paid,
+    total_claims: d.total_claims,
+    total_beneficiaries: d.total_beneficiaries ?? 0,
+  };
 }
 
 export function ProviderMap() {
@@ -53,21 +68,34 @@ export function ProviderMap() {
     [selectedProcedure, selectedState]
   );
 
+  const { data: procDetail } = useApi(
+    () =>
+      selectedProcedure
+        ? api.procedureDetail(selectedProcedure)
+        : Promise.resolve(null),
+    [selectedProcedure]
+  );
+
+  // Fetch selected provider detail for highlight dot
+  const { data: selectedDetail } = useApi(
+    () => (selectedNpi ? api.providerDetail(selectedNpi) : Promise.resolve(null)),
+    [selectedNpi]
+  );
+
   // Fly to selected provider
   useEffect(() => {
-    if (!selectedNpi || !data) return;
-    const provider = data.find((d) => d.npi === selectedNpi);
-    if (provider) {
+    if (!selectedNpi || !selectedDetail) return;
+    if (selectedDetail.lat && selectedDetail.lng) {
       setViewState((prev) => ({
         ...prev,
-        longitude: provider.lng,
-        latitude: provider.lat,
+        longitude: selectedDetail.lng!,
+        latitude: selectedDetail.lat!,
         zoom: 11,
         transitionDuration: 1200,
         transitionInterpolator: new FlyToInterpolator(),
       }));
     }
-  }, [selectedNpi, data]);
+  }, [selectedNpi, selectedDetail]);
 
   // Reset view when clearing selection
   useEffect(() => {
@@ -98,12 +126,10 @@ export function ProviderMap() {
           getPosition: (d) => [d.lng, d.lat],
           getRadius: (d) => radiusForPaid(d.total_paid),
           radiusUnits: "pixels" as const,
-          getFillColor: (d) =>
-            selectedNpi && d.npi === selectedNpi ? HIGHLIGHT_COLOR : DOT_COLOR,
-          pickable: !selectedProcedure,
+          getFillColor: DOT_COLOR,
+          pickable: !selectedProcedure && !selectedNpi,
           opacity: selectedProcedure ? 0.15 : 0.6,
           updateTriggers: {
-            getFillColor: [selectedNpi],
             opacity: [selectedProcedure],
           },
           onClick: ({ object }) => {
@@ -142,8 +168,35 @@ export function ProviderMap() {
       );
     }
 
+    // Highlight layer: always show selected provider on top
+    if (selectedNpi && selectedDetail) {
+      const mp = detailToMapProvider(selectedDetail);
+      if (mp) {
+        result.push(
+          new ScatterplotLayer<MapProvider>({
+            id: "selected-provider",
+            data: [mp],
+            getPosition: (d) => [d.lng, d.lat],
+            getRadius: 14,
+            radiusUnits: "pixels" as const,
+            getFillColor: HIGHLIGHT_COLOR,
+            getLineColor: [255, 255, 255],
+            getLineWidth: 2,
+            stroked: true,
+            lineWidthUnits: "pixels" as const,
+            pickable: true,
+            opacity: 1,
+            onHover: ({ object, x, y }) => {
+              if (object) setTooltip({ x, y, provider: object });
+              else setTooltip(null);
+            },
+          })
+        );
+      }
+    }
+
     return result;
-  }, [data, procData, selectedNpi, selectedProcedure, setSelectedNpi]);
+  }, [data, procData, selectedNpi, selectedDetail, selectedProcedure, setSelectedNpi]);
 
   return (
     <div className="map-container">
@@ -179,7 +232,9 @@ export function ProviderMap() {
         <div className="map-legend">
           <div className="map-legend-item">
             <span className="map-legend-dot" style={{ background: `rgb(${PROCEDURE_COLOR.join(",")})` }} />
-            Procedure providers
+            {procDetail
+              ? `${procDetail.hcpcs_code} — ${procDetail.description?.length > 32 ? procDetail.description.slice(0, 30) + "..." : procDetail.description}`
+              : selectedProcedure}
           </div>
           <div className="map-legend-item">
             <span className="map-legend-dot" style={{ background: `rgb(${DOT_COLOR.join(",")})`, opacity: 0.3 }} />

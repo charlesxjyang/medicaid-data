@@ -1,10 +1,17 @@
+import { useState, useMemo } from "react";
 import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
 import { fmtDollars, fmtNumber } from "../../utils";
 
+type SortKey = "name" | "claims" | "per_claim" | "paid";
+type SortDir = "asc" | "desc";
+
 export function ProcedureDetail() {
   const { selectedProcedure, selectedState, setSelectedProcedure, setSelectedNpi } = useDashboard();
+  const [sortKey, setSortKey] = useState<SortKey>("paid");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
   const { data: detail, loading } = useApi(
     () => (selectedProcedure ? api.procedureDetail(selectedProcedure) : Promise.resolve(null)),
     [selectedProcedure]
@@ -22,6 +29,46 @@ export function ProcedureDetail() {
   );
 
   const benchmark = benchmarks?.[0];
+  const showState = !!selectedState;
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  }
+
+  const sortIndicator = (key: SortKey) =>
+    sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "";
+
+  const sorted = useMemo(() => {
+    if (!providers) return [];
+    return [...providers].sort((a, b) => {
+      let av: number | string = 0;
+      let bv: number | string = 0;
+      switch (sortKey) {
+        case "name":
+          av = a.name.toLowerCase();
+          bv = b.name.toLowerCase();
+          return sortDir === "asc" ? (av < bv ? -1 : 1) : (av > bv ? -1 : 1);
+        case "claims":
+          av = a.total_claims;
+          bv = b.total_claims;
+          break;
+        case "per_claim":
+          av = a.total_claims > 0 ? a.total_paid / a.total_claims : 0;
+          bv = b.total_claims > 0 ? b.total_paid / b.total_claims : 0;
+          break;
+        case "paid":
+          av = a.total_paid;
+          bv = b.total_paid;
+          break;
+      }
+      return sortDir === "asc" ? (av as number) - (bv as number) : (bv as number) - (av as number);
+    });
+  }, [providers, sortKey, sortDir]);
 
   if (!selectedProcedure) return null;
 
@@ -62,21 +109,30 @@ export function ProcedureDetail() {
         </div>
       )}
 
-      {providers && providers.length > 0 && (
+      {sorted.length > 0 && (
         <div className="detail-procedures">
           <h4>Top Providers</h4>
           <table>
             <thead>
               <tr>
-                <th>Provider</th>
-                <th className="num">Claims</th>
-                <th className="num">$/Claim</th>
+                <th className="sortable" onClick={() => handleSort("name")}>
+                  Provider{sortIndicator("name")}
+                </th>
+                <th className="num sortable" onClick={() => handleSort("claims")}>
+                  Claims{sortIndicator("claims")}
+                </th>
+                <th className="num sortable" onClick={() => handleSort("per_claim")}>
+                  $/Claim{sortIndicator("per_claim")}
+                </th>
+                <th className="num sortable" onClick={() => handleSort("paid")}>
+                  Total Paid{sortIndicator("paid")}
+                </th>
                 <th className="num">Natl Avg</th>
-                {benchmark?.state_per_claim != null && <th className="num">State Avg</th>}
+                {showState && <th className="num">{selectedState} Avg</th>}
               </tr>
             </thead>
             <tbody>
-              {providers.map((p) => {
+              {sorted.map((p) => {
                 const perClaim = p.total_claims > 0 ? p.total_paid / p.total_claims : null;
                 return (
                   <tr
@@ -92,13 +148,18 @@ export function ProcedureDetail() {
                     </td>
                     <td className="num">{fmtNumber(p.total_claims)}</td>
                     <td className="num">{perClaim != null ? fmtDollars(perClaim) : "—"}</td>
+                    <td className="num">{fmtDollars(p.total_paid)}</td>
                     <td className="num">
                       {benchmark?.national_per_claim != null
                         ? fmtDollars(benchmark.national_per_claim)
                         : "—"}
                     </td>
-                    {benchmark?.state_per_claim != null && (
-                      <td className="num">{fmtDollars(benchmark.state_per_claim)}</td>
+                    {showState && (
+                      <td className="num">
+                        {benchmark?.state_per_claim != null
+                          ? fmtDollars(benchmark.state_per_claim)
+                          : "—"}
+                      </td>
                     )}
                   </tr>
                 );

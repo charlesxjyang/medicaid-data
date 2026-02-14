@@ -155,6 +155,58 @@ def provider_timeseries(npi: str):
     ]
 
 
+@router.get("/{npi}/procedure-timeseries")
+def provider_procedure_timeseries(npi: str, limit: int = 4):
+    """Monthly spending broken out by top N procedures for a provider."""
+    db = get_db()
+    # Get top procedures by total spend
+    top = db.execute("""
+        SELECT hcpcs_code
+        FROM agg_provider_procedure
+        WHERE npi = ?
+        ORDER BY total_paid DESC
+        LIMIT ?
+    """, [npi, limit]).fetchall()
+    top_codes = [r[0] for r in top]
+    if not top_codes:
+        return {"procedures": [], "series": []}
+
+    placeholders = ",".join(["?"] * len(top_codes))
+
+    # Get descriptions
+    descs = db.execute(f"""
+        SELECT hcpcs_code, short_description
+        FROM hcpcs_codes
+        WHERE hcpcs_code IN ({placeholders})
+    """, top_codes).fetchall()
+    desc_map = {r[0]: r[1] or r[0] for r in descs}
+
+    # Get monthly data
+    rows = db.execute(f"""
+        SELECT month, hcpcs_code, total_paid
+        FROM agg_provider_procedure_monthly
+        WHERE npi = ? AND hcpcs_code IN ({placeholders})
+        ORDER BY month
+    """, [npi] + top_codes).fetchall()
+
+    # Pivot into {month, code1, code2, ...} format
+    months: dict = {}
+    for r in rows:
+        m = r[0]
+        if m not in months:
+            months[m] = {"month": m}
+        months[m][r[1]] = r[2]
+
+    procedures = [
+        {"code": c, "description": desc_map.get(c, c)}
+        for c in top_codes
+    ]
+    return {
+        "procedures": procedures,
+        "series": list(months.values()),
+    }
+
+
 @router.get("/{npi}/procedures")
 def provider_procedures(npi: str, limit: int = 20):
     """Top procedures for one provider by spending."""
