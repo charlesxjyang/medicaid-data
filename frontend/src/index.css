@@ -346,6 +346,9 @@ body {
   background: var(--surface-hover);
   border-radius: var(--radius);
 }
+.detail-procedures {
+  overflow-x: auto;
+}
 .detail-procedures h4 {
   font-size: 13px;
   font-weight: 600;
