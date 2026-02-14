@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   ResponsiveContainer,
   BarChart,
@@ -8,15 +8,19 @@ import {
   Tooltip,
   CartesianGrid,
   ReferenceLine,
+  Cell,
 } from "recharts";
 import { api } from "../../api/client";
 import { fmtDollars } from "../../utils";
 import { useApi } from "../../hooks/useApi";
+import { useDashboard } from "../../store/dashboard";
 import type { ProcedureSummary } from "../../types/api";
 
 export function ProcedureReimbursementChart() {
-  const [selectedCode, setSelectedCode] = useState<string | null>(null);
-  const [selectedLabel, setSelectedLabel] = useState("");
+  const { selectedProcedure, setSelectedNpi } = useDashboard();
+
+  const [localCode, setLocalCode] = useState<string | null>(null);
+  const [localLabel, setLocalLabel] = useState("");
   const [sort, setSort] = useState<"asc" | "desc">("desc");
 
   const [query, setQuery] = useState("");
@@ -24,11 +28,24 @@ export function ProcedureReimbursementChart() {
   const [open, setOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // Sync with global procedure selection
+  useEffect(() => {
+    if (selectedProcedure) {
+      setLocalCode(selectedProcedure);
+      // Fetch procedure detail to get the label
+      api.procedureDetail(selectedProcedure).then((d) => {
+        setLocalLabel(`${d.hcpcs_code} — ${d.description || d.hcpcs_code}`);
+      });
+    }
+  }, [selectedProcedure]);
+
+  const activeCode = localCode;
+
   const fetcher = useCallback(
-    () => (selectedCode ? api.procedureAvgReimbursement(selectedCode, sort) : Promise.resolve(null)),
-    [selectedCode, sort]
+    () => (activeCode ? api.procedureAvgReimbursement(activeCode, sort) : Promise.resolve(null)),
+    [activeCode, sort]
   );
-  const { data, loading } = useApi(fetcher, [selectedCode, sort]);
+  const { data, loading } = useApi(fetcher, [activeCode, sort]);
 
   function handleInput(value: string) {
     setQuery(value);
@@ -46,10 +63,16 @@ export function ProcedureReimbursementChart() {
   }
 
   function select(proc: ProcedureSummary) {
-    setSelectedCode(proc.hcpcs_code);
-    setSelectedLabel(`${proc.hcpcs_code} — ${proc.description || proc.hcpcs_code}`);
+    setLocalCode(proc.hcpcs_code);
+    setLocalLabel(`${proc.hcpcs_code} — ${proc.description || proc.hcpcs_code}`);
     setQuery("");
     setOpen(false);
+  }
+
+  function handleBarClick(npi: string) {
+    setSelectedNpi(npi);
+    // Scroll to top so the user sees the provider detail
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   const chartData = data?.providers?.map((p) => ({
@@ -93,7 +116,7 @@ export function ProcedureReimbursementChart() {
               </ul>
             )}
           </div>
-          {selectedCode && (
+          {activeCode && (
             <div className="reimb-sort">
               <button
                 className={sort === "desc" ? "active" : ""}
@@ -112,11 +135,11 @@ export function ProcedureReimbursementChart() {
         </div>
       </div>
 
-      {selectedCode && (
-        <div className="reimb-label">{selectedLabel}</div>
+      {activeCode && (
+        <div className="reimb-label">{localLabel}</div>
       )}
 
-      {!selectedCode ? (
+      {!activeCode ? (
         <div className="reimb-empty">
           Search for a procedure above to see average reimbursement by provider
         </div>
@@ -126,17 +149,11 @@ export function ProcedureReimbursementChart() {
         <ResponsiveContainer width="100%" height={400}>
           <BarChart
             data={chartData}
-            margin={{ top: 16, right: 16, bottom: 80, left: 8 }}
+            margin={{ top: 16, right: 16, bottom: 8, left: 8 }}
+            style={{ cursor: "pointer" }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-            <XAxis
-              dataKey="name"
-              tick={{ fontSize: 10 }}
-              angle={-45}
-              textAnchor="end"
-              interval={0}
-              height={80}
-            />
+            <XAxis dataKey="name" tick={false} height={10} />
             <YAxis
               tickFormatter={(v) => fmtDollars(v)}
               tick={{ fontSize: 11 }}
@@ -154,6 +171,7 @@ export function ProcedureReimbursementChart() {
                       {fmtDollars(d.avg_per_claim)} / claim
                     </div>
                     <div>{d.total_claims.toLocaleString()} total claims</div>
+                    <div className="reimb-tooltip-hint">Click to view provider</div>
                   </div>
                 );
               }}
@@ -175,10 +193,15 @@ export function ProcedureReimbursementChart() {
             )}
             <Bar
               dataKey="avg_per_claim"
-              fill="#3b82f6"
               radius={[3, 3, 0, 0]}
               maxBarSize={24}
-            />
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              onClick={(d: any) => handleBarClick(d.npi)}
+            >
+              {chartData?.map((_, i) => (
+                <Cell key={i} fill="#3b82f6" className="reimb-bar" />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       )}

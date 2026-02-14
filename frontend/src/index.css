@@ -483,6 +483,16 @@ tbody td {
   font-weight: 600;
   font-size: 14px;
 }
+.reimb-tooltip-hint {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.reimb-bar:hover {
+  fill: var(--accent-hover) !important;
+  cursor: pointer;
+}
 
 /* Recharts overrides */
 .recharts-cartesian-grid-horizontal line,
