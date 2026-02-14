@@ -13,6 +13,7 @@
     "@deck.gl/core": "^9.2.7",
     "@deck.gl/layers": "^9.2.7",
     "@deck.gl/react": "^9.2.7",
+    "@vercel/analytics": "^1.6.1",
     "deck.gl": "^9.2.7",
     "maplibre-gl": "^5.18.0",
     "react": "^19.2.0",

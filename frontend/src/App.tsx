@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import { DashboardContext } from "./store/dashboard";
 import { ProviderMap } from "./components/Map/ProviderMap";
 import { SpendingTimeSeries } from "./components/Charts/SpendingTimeSeries";
@@ -31,6 +32,7 @@ function App() {
   };
 
   return (
+    <>
     <DashboardContext.Provider value={ctx}>
       <div className="app">
         <header className="app-header">
@@ -71,6 +73,8 @@ function App() {
         </div>
       </div>
     </DashboardContext.Provider>
+    <Analytics />
+    </>
   );
 }
 
