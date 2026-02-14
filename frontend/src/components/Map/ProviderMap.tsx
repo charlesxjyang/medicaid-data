@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Map } from "react-map-gl/maplibre";
 import { DeckGL } from "@deck.gl/react";
 import { ScatterplotLayer } from "@deck.gl/layers";
+import { FlyToInterpolator } from "@deck.gl/core";
 import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
@@ -19,17 +20,18 @@ const INITIAL_VIEW = {
 
 const MAP_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
-const DOT_COLOR: [number, number, number, number] = [37, 99, 235, 160]; // blue
+const DOT_COLOR: [number, number, number] = [37, 99, 235];
+const HIGHLIGHT_COLOR: [number, number, number] = [255, 0, 0];
 
+// Linear scale: largest providers (~$500M) get ~30px, smallest get 2px
+const MAX_PAID = 5e8;
 function radiusForPaid(paid: number): number {
-  // Log scale in pixels: ~$10K → 2px, ~$1B+ → 20px
-  const logVal = Math.log10(Math.max(paid, 1));
-  // logVal ranges roughly 4 ($10K) to 10 ($10B)
-  return 2 + Math.max(0, logVal - 4) * 3;
+  return 2 + (Math.min(paid, MAX_PAID) / MAX_PAID) * 28;
 }
 
 export function ProviderMap() {
-  const { selectedState, setSelectedNpi } = useDashboard();
+  const { selectedState, selectedNpi, setSelectedNpi } = useDashboard();
+  const [viewState, setViewState] = useState(INITIAL_VIEW);
   const [tooltip, setTooltip] = useState<{
     x: number;
     y: number;
@@ -41,6 +43,38 @@ export function ProviderMap() {
     [selectedState]
   );
 
+  // Fly to selected provider
+  useEffect(() => {
+    if (!selectedNpi || !data) return;
+    const provider = data.find((d) => d.npi === selectedNpi);
+    if (provider) {
+      setViewState((prev) => ({
+        ...prev,
+        longitude: provider.lng,
+        latitude: provider.lat,
+        zoom: 11,
+        transitionDuration: 1200,
+        transitionInterpolator: new FlyToInterpolator(),
+      }));
+    }
+  }, [selectedNpi, data]);
+
+  // Reset view when clearing selection
+  useEffect(() => {
+    if (!selectedNpi && !selectedState) {
+      setViewState((prev) => ({
+        ...prev,
+        ...INITIAL_VIEW,
+        transitionDuration: 800,
+        transitionInterpolator: new FlyToInterpolator(),
+      }));
+    }
+  }, [selectedNpi, selectedState]);
+
+  const handleViewStateChange = useCallback(({ viewState: vs }: { viewState: typeof INITIAL_VIEW }) => {
+    setViewState(vs);
+  }, []);
+
   const layer = useMemo(() => {
     if (!data) return null;
     return new ScatterplotLayer<MapProvider>({
@@ -49,9 +83,13 @@ export function ProviderMap() {
       getPosition: (d) => [d.lng, d.lat],
       getRadius: (d) => radiusForPaid(d.total_paid),
       radiusUnits: "pixels" as const,
-      getFillColor: DOT_COLOR,
+      getFillColor: (d) =>
+        selectedNpi && d.npi === selectedNpi ? HIGHLIGHT_COLOR : DOT_COLOR,
       pickable: true,
-      opacity: 0.8,
+      opacity: 0.6,
+      updateTriggers: {
+        getFillColor: [selectedNpi],
+      },
       onClick: ({ object }) => {
         if (object) setSelectedNpi(object.npi);
       },
@@ -60,13 +98,14 @@ export function ProviderMap() {
         else setTooltip(null);
       },
     });
-  }, [data, setSelectedNpi]);
+  }, [data, selectedNpi, setSelectedNpi]);
 
   return (
     <div className="map-container">
       {loading && <div className="map-loading">Loading providers...</div>}
       <DeckGL
-        initialViewState={INITIAL_VIEW}
+        viewState={viewState}
+        onViewStateChange={handleViewStateChange}
         controller={true}
         layers={layer ? [layer] : []}
         getTooltip={null}

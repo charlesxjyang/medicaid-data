@@ -5,6 +5,8 @@
 *.arrow
 *.zip
 *.txt
+*.xlsx
+*.pdf
 !requirements.txt
 
 # Node

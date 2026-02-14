@@ -8,6 +8,7 @@ import type {
   ProcedureSummary,
   ProcedureDetail,
   ProcedureProvider,
+  ProcedureBenchmark,
   MapProvider,
 } from "../types/api";
 
@@ -43,14 +44,20 @@ export const api = {
     get<ProcedureSummary[]>(
       `/api/procedures/search?q=${encodeURIComponent(q)}`
     ),
-  topProcedures: (limit = 25) =>
-    get<ProcedureSummary[]>(`/api/procedures/top?limit=${limit}`),
+  topProcedures: (state?: string, limit = 25) =>
+    get<ProcedureSummary[]>(
+      `/api/procedures/top?limit=${limit}${state ? `&state=${state}` : ""}`
+    ),
   procedureDetail: (code: string) =>
     get<ProcedureDetail>(`/api/procedures/${encodeURIComponent(code)}/detail`),
   procedureProviders: (code: string) =>
     get<ProcedureProvider[]>(`/api/procedures/${encodeURIComponent(code)}/providers`),
   procedureTimeseries: (code: string) =>
     get<MonthlyData[]>(`/api/procedures/${encodeURIComponent(code)}/timeseries`),
+  procedureBenchmarks: (codes: string, state?: string) =>
+    get<ProcedureBenchmark[]>(
+      `/api/procedures/benchmarks?codes=${encodeURIComponent(codes)}${state ? `&state=${state}` : ""}`
+    ),
 
   mapProviders: (opts?: {
     state?: string;

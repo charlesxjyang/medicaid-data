@@ -105,6 +105,7 @@ body {
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   max-height: calc(100vh - 200px);
 }
 
@@ -198,6 +199,7 @@ body {
   border-radius: 0 0 var(--radius) var(--radius);
   max-height: 300px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   list-style: none;
 }
 .search-results li {
@@ -218,6 +220,24 @@ body {
   display: block;
   font-size: 11px;
   color: var(--text-muted);
+}
+.search-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+  letter-spacing: 0.04em;
+}
+.search-tag.provider {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.search-tag.procedure {
+  background: #fef3c7;
+  color: #92400e;
 }
 
 /* Filter Group */
@@ -251,6 +271,9 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px;
+  max-height: calc(100vh - 220px);
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 .back-btn {
   background: none;
@@ -308,7 +331,9 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px;
-  overflow: hidden;
+  max-height: 400px;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 .table-panel h4 {
   font-size: 14px;
@@ -341,6 +366,14 @@ thead th {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+thead th.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.1s;
+}
+thead th.sortable:hover {
+  color: var(--accent);
 }
 tbody td {
   padding: 6px 8px;

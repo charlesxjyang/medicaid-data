@@ -43,7 +43,7 @@ function App() {
             >
               open-sourced Medicaid dataset
             </a>
-            {" "}· $1.09T across 617K providers · 2018–2024
+            {" "}· $1.09T in Medicaid spending from 2018–2024
           </p>
         </header>
 

@@ -87,6 +87,12 @@ export interface ProcedureProvider {
   total_paid: number;
 }
 
+export interface ProcedureBenchmark {
+  hcpcs_code: string;
+  national_per_claim: number | null;
+  state_per_claim: number | null;
+}
+
 export interface MapProvider {
   npi: string;
   name: string;

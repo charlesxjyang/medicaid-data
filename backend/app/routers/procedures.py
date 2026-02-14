@@ -1,4 +1,5 @@
 """Procedure search and time series endpoints."""
+from typing import Optional
 from fastapi import APIRouter, Query
 from ..db import get_db
 
@@ -30,17 +31,34 @@ def search_procedures(q: str = Query(..., min_length=1), limit: int = 20):
 
 
 @router.get("/top")
-def top_procedures(limit: int = 25):
-    """Top procedures by total spending."""
+def top_procedures(state: Optional[str] = None, limit: int = 25):
+    """Top procedures by total spending. Optionally filter by state."""
     db = get_db()
-    rows = db.execute("""
-        SELECT h.hcpcs_code, h.short_description, h.unique_providers, h.total_paid,
-               a.total_claims
-        FROM hcpcs_codes h
-        LEFT JOIN agg_procedure_summary a ON a.hcpcs_code = h.hcpcs_code
-        ORDER BY h.total_paid DESC
-        LIMIT ?
-    """, [limit]).fetchall()
+    if state:
+        rows = db.execute("""
+            SELECT
+                p.hcpcs_code,
+                COALESCE(NULLIF(h.short_description, ''), p.hcpcs_code) AS description,
+                COUNT(DISTINCT p.npi) AS unique_providers,
+                SUM(p.total_paid) AS total_paid,
+                SUM(p.total_claims) AS total_claims
+            FROM agg_provider_procedure p
+            JOIN map_providers m ON m.npi = p.npi
+            LEFT JOIN hcpcs_codes h ON h.hcpcs_code = p.hcpcs_code
+            WHERE m.state = ?
+            GROUP BY p.hcpcs_code, h.short_description
+            ORDER BY total_paid DESC
+            LIMIT ?
+        """, [state, limit]).fetchall()
+    else:
+        rows = db.execute("""
+            SELECT h.hcpcs_code, h.short_description, h.unique_providers, h.total_paid,
+                   a.total_claims
+            FROM hcpcs_codes h
+            LEFT JOIN agg_procedure_summary a ON a.hcpcs_code = h.hcpcs_code
+            ORDER BY h.total_paid DESC
+            LIMIT ?
+        """, [limit]).fetchall()
     return [
         {
             "hcpcs_code": r[0],
@@ -50,6 +68,50 @@ def top_procedures(limit: int = 25):
             "total_claims": r[4],
         }
         for r in rows
+    ]
+
+
+@router.get("/benchmarks")
+def procedure_benchmarks(codes: str, state: Optional[str] = None):
+    """Return national and optional state avg $/claim for a list of procedure codes."""
+    db = get_db()
+    code_list = [c.strip() for c in codes.split(",") if c.strip()]
+    if not code_list:
+        return []
+
+    placeholders = ",".join(["?"] * len(code_list))
+
+    # National averages
+    national = db.execute(f"""
+        SELECT hcpcs_code,
+               SUM(total_paid) / NULLIF(SUM(total_claims), 0) AS avg_per_claim
+        FROM agg_provider_procedure
+        WHERE hcpcs_code IN ({placeholders})
+        GROUP BY hcpcs_code
+    """, code_list).fetchall()
+    national_map = {r[0]: r[1] for r in national}
+
+    # State averages
+    state_map = {}
+    if state:
+        state_rows = db.execute(f"""
+            SELECT p.hcpcs_code,
+                   SUM(p.total_paid) / NULLIF(SUM(p.total_claims), 0) AS avg_per_claim
+            FROM agg_provider_procedure p
+            JOIN map_providers m ON m.npi = p.npi
+            WHERE p.hcpcs_code IN ({placeholders})
+              AND m.state = ?
+            GROUP BY p.hcpcs_code
+        """, code_list + [state]).fetchall()
+        state_map = {r[0]: r[1] for r in state_rows}
+
+    return [
+        {
+            "hcpcs_code": code,
+            "national_per_claim": national_map.get(code),
+            "state_per_claim": state_map.get(code),
+        }
+        for code in code_list
     ]
 
 
