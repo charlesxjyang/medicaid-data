@@ -402,6 +402,10 @@ tbody td {
 .provider-name {
   font-weight: 500;
 }
+.provider-loc {
+  font-size: 10px;
+  color: var(--text-muted);
+}
 
 /* Animations */
 @keyframes pulse {
