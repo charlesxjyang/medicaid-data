@@ -71,7 +71,8 @@ export function ProviderMap() {
     }
   }, [selectedNpi, selectedState]);
 
-  const handleViewStateChange = useCallback(({ viewState: vs }: { viewState: typeof INITIAL_VIEW }) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleViewStateChange = useCallback(({ viewState: vs }: any) => {
     setViewState(vs);
   }, []);
 

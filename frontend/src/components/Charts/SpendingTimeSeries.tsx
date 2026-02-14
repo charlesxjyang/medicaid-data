@@ -31,7 +31,7 @@ export function SpendingTimeSeries() {
 
   return (
     <div className="chart-panel">
-      <h3 className="panel-title">Monthly Spending — {label}</h3>
+      <h3 className="panel-title">Monthly Reimbursements — {label}</h3>
       {loading || !data ? (
         <div className="chart-skeleton" />
       ) : (

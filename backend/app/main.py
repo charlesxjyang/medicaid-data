@@ -10,7 +10,12 @@ app = FastAPI(title="Medicaid Provider Spending API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "https://medicaid-dashboard.vercel.app",
+        os.environ.get("CORS_ORIGIN", ""),
+    ],
     allow_methods=["GET"],
     allow_headers=["*"],
 )
