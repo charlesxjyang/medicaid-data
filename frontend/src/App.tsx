@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Analytics } from "@vercel/analytics/react";
 import { DashboardContext } from "./store/dashboard";
 import { ProviderMap } from "./components/Map/ProviderMap";
@@ -11,23 +11,80 @@ import { ProcedureDetail } from "./components/Sidebar/ProcedureDetail";
 import { TopProviders } from "./components/Sidebar/TopProviders";
 import { TopProcedures } from "./components/Sidebar/TopProcedures";
 
+function parseUrl(): {
+  npi: string | null;
+  procedure: string | null;
+  state: string | null;
+} {
+  const path = window.location.pathname;
+  const params = new URLSearchParams(window.location.search);
+  const state = params.get("state");
+  const providerMatch = path.match(/^\/provider\/(.+)$/);
+  if (providerMatch) return { npi: providerMatch[1], procedure: null, state };
+  const procedureMatch = path.match(/^\/procedure\/(.+)$/);
+  if (procedureMatch) return { npi: null, procedure: procedureMatch[1], state };
+  return { npi: null, procedure: null, state };
+}
+
+function buildUrl(
+  npi: string | null,
+  procedure: string | null,
+  state: string | null,
+): string {
+  let path = "/";
+  if (npi) path = `/provider/${npi}`;
+  else if (procedure) path = `/procedure/${procedure}`;
+  const params = new URLSearchParams();
+  if (state) params.set("state", state);
+  const qs = params.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
 function App() {
-  const [selectedState, setSelectedState] = useState<string | null>(null);
-  const [selectedNpi, setSelectedNpi] = useState<string | null>(null);
-  const [selectedProcedure, setSelectedProcedure] = useState<string | null>(null);
+  const initial = parseUrl();
+  const [selectedState, setSelectedState] = useState<string | null>(initial.state);
+  const [selectedNpi, setSelectedNpi] = useState<string | null>(initial.npi);
+  const [selectedProcedure, setSelectedProcedure] = useState<string | null>(initial.procedure);
+
+  // Sync URL on popstate (back/forward)
+  useEffect(() => {
+    const onPopState = () => {
+      const parsed = parseUrl();
+      setSelectedNpi(parsed.npi);
+      setSelectedProcedure(parsed.procedure);
+      setSelectedState(parsed.state);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  const pushUrl = useCallback(
+    (npi: string | null, procedure: string | null, state: string | null) => {
+      const url = buildUrl(npi, procedure, state);
+      if (url !== window.location.pathname + window.location.search) {
+        window.history.pushState(null, "", url);
+      }
+    },
+    [],
+  );
 
   const ctx = {
     selectedState,
     selectedNpi,
     selectedProcedure,
-    setSelectedState,
+    setSelectedState: (state: string | null) => {
+      setSelectedState(state);
+      pushUrl(selectedNpi, selectedProcedure, state);
+    },
     setSelectedNpi: (npi: string | null) => {
       setSelectedNpi(npi);
       if (npi) setSelectedProcedure(null);
+      pushUrl(npi, npi ? null : selectedProcedure, selectedState);
     },
     setSelectedProcedure: (code: string | null) => {
       setSelectedProcedure(code);
       if (code) setSelectedNpi(null);
+      pushUrl(code ? null : selectedNpi, code, selectedState);
     },
   };
 
