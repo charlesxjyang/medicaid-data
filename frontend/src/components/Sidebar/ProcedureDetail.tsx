@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
@@ -8,13 +8,11 @@ import type { ProcedureProvider } from "../../types/api";
 const PRELOAD = 150;
 const PAGE_SIZE = 25;
 
-type SortKey = "name" | "claims" | "per_claim" | "paid";
-type SortDir = "asc" | "desc";
+type SortKey = "total_paid" | "total_claims" | "per_claim";
 
 export function ProcedureDetail() {
   const { selectedProcedure, selectedState, setSelectedProcedure, setSelectedNpi } = useDashboard();
-  const [sortKey, setSortKey] = useState<SortKey>("paid");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [sortKey, setSortKey] = useState<SortKey>("total_paid");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const { data: detail, loading } = useApi(
@@ -22,8 +20,8 @@ export function ProcedureDetail() {
     [selectedProcedure]
   );
   const { data: providers } = useApi(
-    () => (selectedProcedure ? api.procedureProviders(selectedProcedure, PRELOAD, 0) : Promise.resolve(null)),
-    [selectedProcedure]
+    () => (selectedProcedure ? api.procedureProviders(selectedProcedure, PRELOAD, 0, sortKey) : Promise.resolve(null)),
+    [selectedProcedure, sortKey]
   );
 
   const { data: benchmarks } = useApi(
@@ -34,50 +32,19 @@ export function ProcedureDetail() {
     [selectedProcedure, selectedState]
   );
 
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [providers]);
+
   const benchmark = benchmarks?.[0];
   const showState = !!selectedState;
 
-  function handleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("desc");
-    }
+  const visible = providers?.slice(0, visibleCount);
+  const hasMore = providers ? visibleCount < providers.length : false;
+
+  function toggleSort(key: SortKey) {
+    setSortKey(key);
   }
 
-  const sortIndicator = (key: SortKey) =>
-    sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "";
-
-  const sorted = useMemo(() => {
-    if (!providers?.length) return [];
-    return [...providers].sort((a, b) => {
-      let av: number | string = 0;
-      let bv: number | string = 0;
-      switch (sortKey) {
-        case "name":
-          av = a.name.toLowerCase();
-          bv = b.name.toLowerCase();
-          return sortDir === "asc" ? (av < bv ? -1 : 1) : (av > bv ? -1 : 1);
-        case "claims":
-          av = a.total_claims;
-          bv = b.total_claims;
-          break;
-        case "per_claim":
-          av = a.total_claims > 0 ? a.total_paid / a.total_claims : 0;
-          bv = b.total_claims > 0 ? b.total_paid / b.total_claims : 0;
-          break;
-        case "paid":
-          av = a.total_paid;
-          bv = b.total_paid;
-          break;
-      }
-      return sortDir === "asc" ? (av as number) - (bv as number) : (bv as number) - (av as number);
-    });
-  }, [providers, sortKey, sortDir]);
-
-  const visible = sorted.slice(0, visibleCount);
-  const hasMore = visibleCount < sorted.length;
+  const arrow = (key: SortKey) => sortKey === key ? " ▼" : "";
 
   if (!selectedProcedure) return null;
 
@@ -118,23 +85,21 @@ export function ProcedureDetail() {
         </div>
       )}
 
-      {visible.length > 0 && (
+      {visible && visible.length > 0 && (
         <div className="detail-procedures">
           <h4>Top Providers</h4>
           <table>
             <thead>
               <tr>
-                <th className="sortable" onClick={() => handleSort("name")}>
-                  Provider{sortIndicator("name")}
+                <th>Provider</th>
+                <th className="num sortable" onClick={() => toggleSort("total_claims")}>
+                  Claims{arrow("total_claims")}
                 </th>
-                <th className="num sortable" onClick={() => handleSort("claims")}>
-                  Claims{sortIndicator("claims")}
+                <th className="num sortable" onClick={() => toggleSort("per_claim")}>
+                  $/Claim{arrow("per_claim")}
                 </th>
-                <th className="num sortable" onClick={() => handleSort("per_claim")}>
-                  $/Claim{sortIndicator("per_claim")}
-                </th>
-                <th className="num sortable" onClick={() => handleSort("paid")}>
-                  Total Paid{sortIndicator("paid")}
+                <th className="num sortable" onClick={() => toggleSort("total_paid")}>
+                  Total Paid{arrow("total_paid")}
                 </th>
                 <th className="num">Natl Avg</th>
                 {showState && <th className="num">{selectedState} Avg</th>}

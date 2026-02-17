@@ -31,11 +31,15 @@ def search_procedures(q: str = Query(..., min_length=1), limit: int = 20):
 
 
 @router.get("/top")
-def top_procedures(state: Optional[str] = None, limit: int = 25, offset: int = 0):
+def top_procedures(state: Optional[str] = None, limit: int = 25, offset: int = 0, sort_by: str = "total_paid"):
     """Top procedures by total spending. Optionally filter by state."""
+    allowed_sort = {"total_paid", "unique_providers", "total_claims"}
+    if sort_by not in allowed_sort:
+        sort_by = "total_paid"
+
     db = get_db()
     if state:
-        rows = db.execute("""
+        rows = db.execute(f"""
             SELECT
                 p.hcpcs_code,
                 COALESCE(NULLIF(h.short_description, ''), p.hcpcs_code) AS description,
@@ -47,17 +51,18 @@ def top_procedures(state: Optional[str] = None, limit: int = 25, offset: int = 0
             LEFT JOIN hcpcs_codes h ON h.hcpcs_code = p.hcpcs_code
             WHERE m.state = ?
             GROUP BY p.hcpcs_code, h.short_description
-            ORDER BY total_paid DESC, p.hcpcs_code
+            ORDER BY {sort_by} DESC, p.hcpcs_code
             LIMIT ?
             OFFSET ?
         """, [state, limit, offset]).fetchall()
     else:
-        rows = db.execute("""
+        order_col = f"h.{sort_by}" if sort_by in ("total_paid", "unique_providers") else f"a.{sort_by}"
+        rows = db.execute(f"""
             SELECT h.hcpcs_code, h.short_description, h.unique_providers, h.total_paid,
                    a.total_claims
             FROM hcpcs_codes h
             LEFT JOIN agg_procedure_summary a ON a.hcpcs_code = h.hcpcs_code
-            ORDER BY h.total_paid DESC, h.hcpcs_code
+            ORDER BY {order_col} DESC NULLS LAST, h.hcpcs_code
             LIMIT ?
             OFFSET ?
         """, [limit, offset]).fetchall()
@@ -141,10 +146,19 @@ def procedure_detail(code: str):
 
 
 @router.get("/{code}/providers")
-def procedure_providers(code: str, limit: int = 25, offset: int = 0):
+def procedure_providers(code: str, limit: int = 25, offset: int = 0, sort_by: str = "total_paid"):
     """Top providers for a given procedure by spending."""
+    allowed_sort = {"total_paid", "total_claims", "per_claim"}
+    if sort_by not in allowed_sort:
+        sort_by = "total_paid"
+
+    if sort_by == "per_claim":
+        order_clause = "(p.total_paid / NULLIF(p.total_claims, 0)) DESC NULLS LAST, p.npi"
+    else:
+        order_clause = f"p.{sort_by} DESC, p.npi"
+
     db = get_db()
-    rows = db.execute("""
+    rows = db.execute(f"""
         SELECT
             p.npi,
             COALESCE(m.name, p.npi) AS name,
@@ -156,7 +170,7 @@ def procedure_providers(code: str, limit: int = 25, offset: int = 0):
         FROM agg_provider_procedure p
         LEFT JOIN map_providers m ON m.npi = p.npi
         WHERE p.hcpcs_code = ?
-        ORDER BY p.total_paid DESC, p.npi
+        ORDER BY {order_clause}
         LIMIT ?
         OFFSET ?
     """, [code, limit, offset]).fetchall()

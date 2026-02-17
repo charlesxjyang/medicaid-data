@@ -33,15 +33,15 @@ export const api = {
 
   searchProviders: (q: string) =>
     get<ProviderSummary[]>(`/api/providers/search?q=${encodeURIComponent(q)}`),
-  topProviders: (state?: string, limit = 25, offset = 0) =>
+  topProviders: (state?: string, limit = 25, offset = 0, sort_by = "total_paid") =>
     get<ProviderSummary[]>(
-      `/api/providers/top?limit=${limit}&offset=${offset}${state ? `&state=${state}` : ""}`
+      `/api/providers/top?limit=${limit}&offset=${offset}&sort_by=${sort_by}${state ? `&state=${state}` : ""}`
     ),
   providerDetail: (npi: string) => get<ProviderDetail>(`/api/providers/${npi}`),
   providerTimeseries: (npi: string) =>
     get<MonthlyData[]>(`/api/providers/${npi}/timeseries`),
-  providerProcedures: (npi: string, limit = 20, offset = 0) =>
-    get<ProviderProcedure[]>(`/api/providers/${npi}/procedures?limit=${limit}&offset=${offset}`),
+  providerProcedures: (npi: string, limit = 20, offset = 0, sort_by = "total_paid") =>
+    get<ProviderProcedure[]>(`/api/providers/${npi}/procedures?limit=${limit}&offset=${offset}&sort_by=${sort_by}`),
   providerProcedureTimeseries: (npi: string) =>
     get<ProviderProcedureTimeseries>(`/api/providers/${npi}/procedure-timeseries`),
 
@@ -49,15 +49,15 @@ export const api = {
     get<ProcedureSummary[]>(
       `/api/procedures/search?q=${encodeURIComponent(q)}`
     ),
-  topProcedures: (state?: string, limit = 25, offset = 0) =>
+  topProcedures: (state?: string, limit = 25, offset = 0, sort_by = "total_paid") =>
     get<ProcedureSummary[]>(
-      `/api/procedures/top?limit=${limit}&offset=${offset}${state ? `&state=${state}` : ""}`
+      `/api/procedures/top?limit=${limit}&offset=${offset}&sort_by=${sort_by}${state ? `&state=${state}` : ""}`
     ),
   procedureDetail: (code: string) =>
     get<ProcedureDetail>(`/api/procedures/${encodeURIComponent(code)}/detail`),
-  procedureProviders: (code: string, limit = 25, offset = 0) =>
+  procedureProviders: (code: string, limit = 25, offset = 0, sort_by = "total_paid") =>
     get<ProcedureProvider[]>(
-      `/api/procedures/${encodeURIComponent(code)}/providers?limit=${limit}&offset=${offset}`
+      `/api/procedures/${encodeURIComponent(code)}/providers?limit=${limit}&offset=${offset}&sort_by=${sort_by}`
     ),
   procedureTimeseries: (code: string) =>
     get<MonthlyData[]>(`/api/procedures/${encodeURIComponent(code)}/timeseries`),

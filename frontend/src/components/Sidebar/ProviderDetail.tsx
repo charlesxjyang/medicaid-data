@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
@@ -9,17 +9,10 @@ const PRELOAD = 150;
 const PAGE_SIZE = 20;
 
 type SortKey = "total_claims" | "total_paid" | "per_claim";
-type SortDir = "asc" | "desc";
-
-function getValue(p: ProviderProcedure, key: SortKey): number {
-  if (key === "per_claim") return p.total_claims ? p.total_paid / p.total_claims : 0;
-  return p[key] ?? 0;
-}
 
 export function ProviderDetail() {
   const { selectedNpi, setSelectedNpi, setSelectedProcedure } = useDashboard();
   const [sortKey, setSortKey] = useState<SortKey>("total_paid");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const { data: detail, loading } = useApi(
@@ -27,8 +20,8 @@ export function ProviderDetail() {
     [selectedNpi]
   );
   const { data: procedures } = useApi(
-    () => (selectedNpi ? api.providerProcedures(selectedNpi, PRELOAD, 0) : Promise.resolve(null)),
-    [selectedNpi]
+    () => (selectedNpi ? api.providerProcedures(selectedNpi, PRELOAD, 0, sortKey) : Promise.resolve(null)),
+    [selectedNpi, sortKey]
   );
 
   const { data: benchmarks } = useApi(
@@ -41,6 +34,8 @@ export function ProviderDetail() {
     [procedures?.length, detail?.state]
   );
 
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [procedures]);
+
   const benchmarkMap = useMemo(() => {
     if (!benchmarks) return {} as Record<string, ProcedureBenchmark>;
     const m: Record<string, ProcedureBenchmark> = {};
@@ -48,21 +43,14 @@ export function ProviderDetail() {
     return m;
   }, [benchmarks]);
 
-  const sorted = useMemo(() => {
-    if (!procedures?.length) return null;
-    const dir = sortDir === "desc" ? 1 : -1;
-    return [...procedures].sort((a, b) => dir * (getValue(b, sortKey) - getValue(a, sortKey)));
-  }, [procedures, sortKey, sortDir]);
-
-  const visible = sorted?.slice(0, visibleCount);
-  const hasMore = sorted ? visibleCount < sorted.length : false;
+  const visible = procedures?.slice(0, visibleCount);
+  const hasMore = procedures ? visibleCount < procedures.length : false;
 
   function toggleSort(key: SortKey) {
-    if (key === sortKey) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
-    else { setSortKey(key); setSortDir("desc"); }
+    setSortKey(key);
   }
 
-  const arrow = (key: SortKey) => sortKey === key ? (sortDir === "desc" ? " ▼" : " ▲") : "";
+  const arrow = (key: SortKey) => sortKey === key ? " ▼" : "";
 
   if (!selectedNpi) return null;
 

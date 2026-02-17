@@ -62,7 +62,7 @@ def top_providers(
     sort_by: str = "total_paid",
 ):
     """Top providers by spending. Optionally filter by state."""
-    allowed_sort = {"total_paid", "total_claims", "total_beneficiaries"}
+    allowed_sort = {"total_paid", "total_claims", "total_beneficiaries", "per_claim"}
     if sort_by not in allowed_sort:
         sort_by = "total_paid"
 
@@ -72,6 +72,11 @@ def top_providers(
     oig_select = ", (o.npi IS NOT NULL) AS is_excluded" if has_oig else ", FALSE AS is_excluded"
     oig_join = "LEFT JOIN (SELECT DISTINCT npi FROM oig_exclusions) o ON o.npi = mp.npi" if has_oig else ""
 
+    if sort_by == "per_claim":
+        order_clause = "(mp.total_paid / NULLIF(mp.total_claims, 0)) DESC NULLS LAST, mp.npi"
+    else:
+        order_clause = f"mp.{sort_by} DESC, mp.npi"
+
     if state:
         rows = db.execute(f"""
             SELECT mp.npi, mp.name, mp.state, mp.city, mp.total_paid,
@@ -80,7 +85,7 @@ def top_providers(
             FROM map_providers mp
             {oig_join}
             WHERE mp.state = ?
-            ORDER BY mp.{sort_by} DESC, mp.npi
+            ORDER BY {order_clause}
             LIMIT ?
             OFFSET ?
         """, [state, limit, offset]).fetchall()
@@ -91,7 +96,7 @@ def top_providers(
                    {oig_select}
             FROM map_providers mp
             {oig_join}
-            ORDER BY mp.{sort_by} DESC, mp.npi
+            ORDER BY {order_clause}
             LIMIT ?
             OFFSET ?
         """, [limit, offset]).fetchall()
@@ -264,10 +269,19 @@ def provider_procedure_timeseries(npi: str, limit: int = 4):
 
 
 @router.get("/{npi}/procedures")
-def provider_procedures(npi: str, limit: int = 20, offset: int = 0):
+def provider_procedures(npi: str, limit: int = 20, offset: int = 0, sort_by: str = "total_paid"):
     """Top procedures for one provider by spending."""
+    allowed_sort = {"total_paid", "total_claims", "per_claim"}
+    if sort_by not in allowed_sort:
+        sort_by = "total_paid"
+
+    if sort_by == "per_claim":
+        order_clause = "(p.total_paid / NULLIF(p.total_claims, 0)) DESC NULLS LAST, p.hcpcs_code"
+    else:
+        order_clause = f"p.{sort_by} DESC, p.hcpcs_code"
+
     db = get_db()
-    rows = db.execute("""
+    rows = db.execute(f"""
         SELECT
             p.hcpcs_code,
             COALESCE(NULLIF(h.short_description, ''), p.hcpcs_code) AS description,
@@ -277,7 +291,7 @@ def provider_procedures(npi: str, limit: int = 20, offset: int = 0):
         FROM agg_provider_procedure p
         LEFT JOIN hcpcs_codes h ON h.hcpcs_code = p.hcpcs_code
         WHERE p.npi = ?
-        ORDER BY p.total_paid DESC, p.hcpcs_code
+        ORDER BY {order_clause}
         LIMIT ?
         OFFSET ?
     """, [npi, limit, offset]).fetchall()

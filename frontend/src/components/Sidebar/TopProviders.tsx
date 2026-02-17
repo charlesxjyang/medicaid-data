@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
@@ -9,7 +9,6 @@ const PRELOAD = 250;
 const PAGE_SIZE = 25;
 
 type SortKey = "total_paid" | "total_claims" | "per_claim";
-type SortDir = "asc" | "desc";
 
 function getValue(p: ProviderSummary, key: SortKey): number {
   if (key === "per_claim") return p.total_claims ? p.total_paid / p.total_claims : 0;
@@ -19,29 +18,26 @@ function getValue(p: ProviderSummary, key: SortKey): number {
 export function TopProviders() {
   const { selectedState, setSelectedNpi } = useDashboard();
   const [sortKey, setSortKey] = useState<SortKey>("total_paid");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
+  // Re-fetch from backend when sort or state changes
   const { data: items, loading } = useApi(
-    () => api.topProviders(selectedState ?? undefined, PRELOAD, 0),
-    [selectedState]
+    () => api.topProviders(selectedState ?? undefined, PRELOAD, 0, sortKey),
+    [selectedState, sortKey]
   );
 
-  const sorted = useMemo(() => {
-    if (!items?.length) return null;
-    const dir = sortDir === "desc" ? 1 : -1;
-    return [...items].sort((a, b) => dir * (getValue(b, sortKey) - getValue(a, sortKey)));
-  }, [items, sortKey, sortDir]);
+  // Reset visible count when data changes
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [items]);
 
-  const visible = sorted?.slice(0, visibleCount);
-  const hasMore = sorted ? visibleCount < sorted.length : false;
+  // Data comes pre-sorted from backend (DESC). Just slice for pagination.
+  const visible = items?.slice(0, visibleCount);
+  const hasMore = items ? visibleCount < items.length : false;
 
   function toggleSort(key: SortKey) {
-    if (key === sortKey) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
-    else { setSortKey(key); setSortDir("desc"); }
+    setSortKey(key);
   }
 
-  const arrow = (key: SortKey) => sortKey === key ? (sortDir === "desc" ? " ▼" : " ▲") : "";
+  const arrow = (key: SortKey) => sortKey === key ? " ▼" : "";
 
   return (
     <div className="table-panel">
