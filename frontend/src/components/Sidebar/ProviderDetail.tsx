@@ -27,7 +27,7 @@ export function ProviderDetail() {
     () => (selectedNpi ? api.providerDetail(selectedNpi) : Promise.resolve(null)),
     [selectedNpi]
   );
-  const { data: procedures } = useApi(
+  useApi(
     () => {
       if (!selectedNpi) return Promise.resolve(null);
       return api.providerProcedures(selectedNpi, PAGE_SIZE, 0).then((rows) => {

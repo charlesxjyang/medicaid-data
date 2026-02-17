@@ -22,7 +22,7 @@ export function ProcedureDetail() {
     () => (selectedProcedure ? api.procedureDetail(selectedProcedure) : Promise.resolve(null)),
     [selectedProcedure]
   );
-  const { data: providers } = useApi(
+  useApi(
     () => {
       if (!selectedProcedure) return Promise.resolve(null);
       return api.procedureProviders(selectedProcedure, PAGE_SIZE, 0).then((rows) => {
