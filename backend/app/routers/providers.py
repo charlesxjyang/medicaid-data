@@ -1,7 +1,10 @@
 """Provider search, detail, and drill-down endpoints."""
+import logging
 from typing import Optional
 from fastapi import APIRouter, Query
 from ..db import get_db
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -15,9 +18,28 @@ def _has_oig_table(db) -> bool:
     try:
         db.execute("SELECT 1 FROM oig_exclusions LIMIT 0")
         _oig_cache["result"] = True
+        logger.info("oig_exclusions table found")
         return True
-    except Exception:
+    except Exception as e:
+        logger.warning("oig_exclusions table not found: %s", e)
         return False
+
+
+@router.get("/debug/oig")
+def debug_oig():
+    """Debug endpoint: check OIG table accessibility."""
+    db = get_db()
+    has_table = _has_oig_table(db)
+    result = {"has_oig_table": has_table, "cache": dict(_oig_cache)}
+    if has_table:
+        count = db.execute("SELECT COUNT(*) FROM oig_exclusions").fetchone()
+        result["row_count"] = count[0] if count else 0
+        # Check for specific test NPI
+        test = db.execute(
+            "SELECT npi, excltype FROM oig_exclusions WHERE npi = '1164013959'"
+        ).fetchone()
+        result["test_npi_1164013959"] = {"npi": test[0], "excltype": test[1]} if test else None
+    return result
 
 
 @router.get("/search")
