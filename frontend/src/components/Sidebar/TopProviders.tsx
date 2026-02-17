@@ -66,9 +66,9 @@ export function TopProviders() {
                   onClick={() => setSelectedNpi(p.npi)}
                 >
                   <td>
-                    <span className="provider-name">{p.name}</span>
+                    <div className="provider-name">{p.name}</div>
                     {p.is_excluded && (
-                      <span className="excluded-tag">OIG EXCLUDED</span>
+                      <div className="excluded-tag">OIG EXCLUDED</div>
                     )}
                   </td>
                   <td>
