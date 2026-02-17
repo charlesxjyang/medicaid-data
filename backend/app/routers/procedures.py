@@ -31,7 +31,7 @@ def search_procedures(q: str = Query(..., min_length=1), limit: int = 20):
 
 
 @router.get("/top")
-def top_procedures(state: Optional[str] = None, limit: int = 25):
+def top_procedures(state: Optional[str] = None, limit: int = 25, offset: int = 0):
     """Top procedures by total spending. Optionally filter by state."""
     db = get_db()
     if state:
@@ -49,7 +49,8 @@ def top_procedures(state: Optional[str] = None, limit: int = 25):
             GROUP BY p.hcpcs_code, h.short_description
             ORDER BY total_paid DESC
             LIMIT ?
-        """, [state, limit]).fetchall()
+            OFFSET ?
+        """, [state, limit, offset]).fetchall()
     else:
         rows = db.execute("""
             SELECT h.hcpcs_code, h.short_description, h.unique_providers, h.total_paid,
@@ -58,7 +59,8 @@ def top_procedures(state: Optional[str] = None, limit: int = 25):
             LEFT JOIN agg_procedure_summary a ON a.hcpcs_code = h.hcpcs_code
             ORDER BY h.total_paid DESC
             LIMIT ?
-        """, [limit]).fetchall()
+            OFFSET ?
+        """, [limit, offset]).fetchall()
     return [
         {
             "hcpcs_code": r[0],
@@ -139,7 +141,7 @@ def procedure_detail(code: str):
 
 
 @router.get("/{code}/providers")
-def procedure_providers(code: str, limit: int = 25):
+def procedure_providers(code: str, limit: int = 25, offset: int = 0):
     """Top providers for a given procedure by spending."""
     db = get_db()
     rows = db.execute("""
@@ -156,7 +158,8 @@ def procedure_providers(code: str, limit: int = 25):
         WHERE p.hcpcs_code = ?
         ORDER BY p.total_paid DESC
         LIMIT ?
-    """, [code, limit]).fetchall()
+        OFFSET ?
+    """, [code, limit, offset]).fetchall()
     return [
         {
             "npi": r[0],

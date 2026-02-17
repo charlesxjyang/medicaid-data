@@ -1,9 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
-import { fmtDollars, fmtNumber, fmtMonth } from "../../utils";
+import { fmtDollars, fmtNumber, fmtMonth, fmtExclType, fmtExclDate } from "../../utils";
 import type { ProviderProcedure, ProcedureBenchmark } from "../../types/api";
+
+const PAGE_SIZE = 20;
 
 type SortKey = "total_claims" | "total_paid" | "per_claim";
 type SortDir = "asc" | "desc";
@@ -17,23 +19,46 @@ export function ProviderDetail() {
   const { selectedNpi, setSelectedNpi, setSelectedProcedure } = useDashboard();
   const [sortKey, setSortKey] = useState<SortKey>("total_paid");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [allProcedures, setAllProcedures] = useState<ProviderProcedure[]>([]);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
   const { data: detail, loading } = useApi(
     () => (selectedNpi ? api.providerDetail(selectedNpi) : Promise.resolve(null)),
     [selectedNpi]
   );
   const { data: procedures } = useApi(
-    () => (selectedNpi ? api.providerProcedures(selectedNpi) : Promise.resolve(null)),
+    () => {
+      if (!selectedNpi) return Promise.resolve(null);
+      return api.providerProcedures(selectedNpi, PAGE_SIZE, 0).then((rows) => {
+        setAllProcedures(rows);
+        setHasMore(rows.length >= PAGE_SIZE);
+        return rows;
+      });
+    },
     [selectedNpi]
   );
 
+  const loadMore = useCallback(() => {
+    if (!selectedNpi) return;
+    setLoadingMore(true);
+    api
+      .providerProcedures(selectedNpi, PAGE_SIZE, allProcedures.length)
+      .then((rows) => {
+        setAllProcedures((prev) => [...prev, ...rows]);
+        setHasMore(rows.length >= PAGE_SIZE);
+      })
+      .finally(() => setLoadingMore(false));
+  }, [selectedNpi, allProcedures.length]);
+
   const { data: benchmarks } = useApi(
     () => {
-      if (!procedures || procedures.length === 0) return Promise.resolve(null);
-      const codes = procedures.map((p) => p.hcpcs_code).join(",");
+      if (!allProcedures.length) return Promise.resolve(null);
+      const codes = allProcedures.map((p) => p.hcpcs_code).join(",");
       const state = detail?.state ?? undefined;
       return api.procedureBenchmarks(codes, state);
     },
-    [procedures, detail?.state]
+    [allProcedures, detail?.state]
   );
 
   const benchmarkMap = useMemo(() => {
@@ -44,10 +69,10 @@ export function ProviderDetail() {
   }, [benchmarks]);
 
   const sorted = useMemo(() => {
-    if (!procedures) return null;
+    if (!allProcedures.length) return null;
     const dir = sortDir === "desc" ? 1 : -1;
-    return [...procedures].sort((a, b) => dir * (getValue(b, sortKey) - getValue(a, sortKey)));
-  }, [procedures, sortKey, sortDir]);
+    return [...allProcedures].sort((a, b) => dir * (getValue(b, sortKey) - getValue(a, sortKey)));
+  }, [allProcedures, sortKey, sortDir]);
 
   function toggleSort(key: SortKey) {
     if (key === sortKey) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
@@ -77,6 +102,14 @@ export function ProviderDetail() {
             )}
             {detail.nppes?.credentials && (
               <p className="detail-creds">{detail.nppes.credentials}</p>
+            )}
+            {detail.is_excluded && detail.exclusion && (
+              <div className="exclusion-banner">
+                OIG Excluded — {fmtExclType(detail.exclusion.exclusion_type)} since {fmtExclDate(detail.exclusion.exclusion_date)}
+                {detail.exclusion.reinstatement_date && (
+                  <span> (reinstated {fmtExclDate(detail.exclusion.reinstatement_date)})</span>
+                )}
+              </div>
             )}
           </>
         ) : null}
@@ -144,6 +177,15 @@ export function ProviderDetail() {
               ))}
             </tbody>
           </table>
+          {hasMore && (
+            <button
+              className="load-more-btn"
+              onClick={loadMore}
+              disabled={loadingMore}
+            >
+              {loadingMore ? "Loading…" : "Load more"}
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -27,6 +27,14 @@ export interface ProviderSummary {
   total_paid: number;
   total_claims: number;
   total_beneficiaries?: number;
+  is_excluded?: boolean;
+}
+
+export interface ExclusionInfo {
+  is_excluded: boolean;
+  exclusion_type: string;
+  exclusion_date: string;
+  reinstatement_date: string | null;
 }
 
 export interface ProviderDetail extends ProviderSummary {
@@ -36,6 +44,8 @@ export interface ProviderDetail extends ProviderSummary {
   unique_procedures: number;
   first_month: string;
   last_month: string;
+  is_excluded: boolean;
+  exclusion?: ExclusionInfo | null;
   nppes?: {
     org_name: string | null;
     first_name: string | null;
@@ -121,4 +131,23 @@ export interface MapProvider {
   total_paid: number;
   total_claims: number;
   total_beneficiaries: number;
+}
+
+export interface ExcludedProvider {
+  npi: string;
+  name: string;
+  state: string;
+  city: string;
+  total_paid: number;
+  total_claims: number;
+  exclusion_type: string;
+  exclusion_date: string;
+  reinstatement_date: string | null;
+  business_name: string | null;
+  specialty: string | null;
+}
+
+export interface ExcludedProvidersResponse {
+  providers: ExcludedProvider[];
+  total: number;
 }

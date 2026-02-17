@@ -12,6 +12,7 @@ import type {
   ProcedureBenchmark,
   ProcedureAvgReimbursement,
   MapProvider,
+  ExcludedProvidersResponse,
 } from "../types/api";
 
 const API = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
@@ -32,15 +33,15 @@ export const api = {
 
   searchProviders: (q: string) =>
     get<ProviderSummary[]>(`/api/providers/search?q=${encodeURIComponent(q)}`),
-  topProviders: (state?: string, limit = 25) =>
+  topProviders: (state?: string, limit = 25, offset = 0) =>
     get<ProviderSummary[]>(
-      `/api/providers/top?limit=${limit}${state ? `&state=${state}` : ""}`
+      `/api/providers/top?limit=${limit}&offset=${offset}${state ? `&state=${state}` : ""}`
     ),
   providerDetail: (npi: string) => get<ProviderDetail>(`/api/providers/${npi}`),
   providerTimeseries: (npi: string) =>
     get<MonthlyData[]>(`/api/providers/${npi}/timeseries`),
-  providerProcedures: (npi: string) =>
-    get<ProviderProcedure[]>(`/api/providers/${npi}/procedures`),
+  providerProcedures: (npi: string, limit = 20, offset = 0) =>
+    get<ProviderProcedure[]>(`/api/providers/${npi}/procedures?limit=${limit}&offset=${offset}`),
   providerProcedureTimeseries: (npi: string) =>
     get<ProviderProcedureTimeseries>(`/api/providers/${npi}/procedure-timeseries`),
 
@@ -48,14 +49,16 @@ export const api = {
     get<ProcedureSummary[]>(
       `/api/procedures/search?q=${encodeURIComponent(q)}`
     ),
-  topProcedures: (state?: string, limit = 25) =>
+  topProcedures: (state?: string, limit = 25, offset = 0) =>
     get<ProcedureSummary[]>(
-      `/api/procedures/top?limit=${limit}${state ? `&state=${state}` : ""}`
+      `/api/procedures/top?limit=${limit}&offset=${offset}${state ? `&state=${state}` : ""}`
     ),
   procedureDetail: (code: string) =>
     get<ProcedureDetail>(`/api/procedures/${encodeURIComponent(code)}/detail`),
-  procedureProviders: (code: string) =>
-    get<ProcedureProvider[]>(`/api/procedures/${encodeURIComponent(code)}/providers`),
+  procedureProviders: (code: string, limit = 25, offset = 0) =>
+    get<ProcedureProvider[]>(
+      `/api/procedures/${encodeURIComponent(code)}/providers?limit=${limit}&offset=${offset}`
+    ),
   procedureTimeseries: (code: string) =>
     get<MonthlyData[]>(`/api/procedures/${encodeURIComponent(code)}/timeseries`),
   procedureAvgReimbursement: (code: string, state?: string) =>
@@ -65,6 +68,11 @@ export const api = {
   procedureBenchmarks: (codes: string, state?: string) =>
     get<ProcedureBenchmark[]>(
       `/api/procedures/benchmarks?codes=${encodeURIComponent(codes)}${state ? `&state=${state}` : ""}`
+    ),
+
+  excludedProviders: (limit = 50, offset = 0) =>
+    get<ExcludedProvidersResponse>(
+      `/api/analysis/excluded-providers?limit=${limit}&offset=${offset}`
     ),
 
   mapProviders: (opts?: {

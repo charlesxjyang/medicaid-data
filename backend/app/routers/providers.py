@@ -6,19 +6,37 @@ from ..db import get_db
 router = APIRouter()
 
 
+def _has_oig_table(db) -> bool:
+    """Check if oig_exclusions table exists."""
+    try:
+        db.execute("SELECT 1 FROM oig_exclusions LIMIT 0")
+        return True
+    except Exception:
+        return False
+
+
 @router.get("/search")
-def search_providers(q: str = Query(..., min_length=2), limit: int = 20):
-    """Autocomplete search by provider name or NPI."""
+def search_providers(q: str = Query(..., min_length=2), limit: int = 20, offset: int = 0):
+    """Autocomplete search by provider name or NPI.
+
+    Splits multi-word queries so 'Eric Lund' matches 'LUND, ERIC'.
+    """
     db = get_db()
-    rows = db.execute("""
+    words = q.strip().split()
+    # Each word must appear somewhere in the name
+    name_conditions = " AND ".join(["name ILIKE ?"] * len(words))
+    name_params = [f"%{w}%" for w in words]
+
+    rows = db.execute(f"""
         SELECT npi, name, state, city, total_paid, total_claims
         FROM map_providers
         WHERE
             npi ILIKE ? OR
-            name ILIKE ?
+            ({name_conditions})
         ORDER BY total_paid DESC
         LIMIT ?
-    """, [f"%{q}%", f"%{q}%", limit]).fetchall()
+        OFFSET ?
+    """, [f"%{q}%"] + name_params + [limit, offset]).fetchall()
     return [
         {
             "npi": r[0],
@@ -36,6 +54,7 @@ def search_providers(q: str = Query(..., min_length=2), limit: int = 20):
 def top_providers(
     state: Optional[str] = None,
     limit: int = 25,
+    offset: int = 0,
     sort_by: str = "total_paid",
 ):
     """Top providers by spending. Optionally filter by state."""
@@ -44,21 +63,34 @@ def top_providers(
         sort_by = "total_paid"
 
     db = get_db()
+    has_oig = _has_oig_table(db)
+
+    oig_select = ", (o.npi IS NOT NULL) AS is_excluded" if has_oig else ", FALSE AS is_excluded"
+    oig_join = "LEFT JOIN (SELECT DISTINCT npi FROM oig_exclusions) o ON o.npi = mp.npi" if has_oig else ""
+
     if state:
         rows = db.execute(f"""
-            SELECT npi, name, state, city, total_paid, total_claims, total_beneficiaries
-            FROM map_providers
-            WHERE state = ?
-            ORDER BY {sort_by} DESC
+            SELECT mp.npi, mp.name, mp.state, mp.city, mp.total_paid,
+                   mp.total_claims, mp.total_beneficiaries
+                   {oig_select}
+            FROM map_providers mp
+            {oig_join}
+            WHERE mp.state = ?
+            ORDER BY mp.{sort_by} DESC
             LIMIT ?
-        """, [state, limit]).fetchall()
+            OFFSET ?
+        """, [state, limit, offset]).fetchall()
     else:
         rows = db.execute(f"""
-            SELECT npi, name, state, city, total_paid, total_claims, total_beneficiaries
-            FROM map_providers
-            ORDER BY {sort_by} DESC
+            SELECT mp.npi, mp.name, mp.state, mp.city, mp.total_paid,
+                   mp.total_claims, mp.total_beneficiaries
+                   {oig_select}
+            FROM map_providers mp
+            {oig_join}
+            ORDER BY mp.{sort_by} DESC
             LIMIT ?
-        """, [limit]).fetchall()
+            OFFSET ?
+        """, [limit, offset]).fetchall()
     return [
         {
             "npi": r[0],
@@ -68,6 +100,7 @@ def top_providers(
             "total_paid": r[4],
             "total_claims": r[5],
             "total_beneficiaries": r[6],
+            "is_excluded": bool(r[7]),
         }
         for r in rows
     ]
@@ -99,6 +132,23 @@ def provider_detail(npi: str):
         WHERE CAST(npi AS VARCHAR) = ?
     """, [npi]).fetchone()
 
+    # OIG exclusion check
+    exclusion = None
+    if _has_oig_table(db):
+        oig_row = db.execute("""
+            SELECT excltype, excldate, reindate
+            FROM oig_exclusions
+            WHERE npi = ?
+            LIMIT 1
+        """, [npi]).fetchone()
+        if oig_row:
+            exclusion = {
+                "is_excluded": True,
+                "exclusion_type": oig_row[0],
+                "exclusion_date": oig_row[1],
+                "reinstatement_date": oig_row[2] if oig_row[2] else None,
+            }
+
     result = {
         "npi": summary[0],
         "name": summary[1],
@@ -113,6 +163,8 @@ def provider_detail(npi: str):
         "unique_procedures": summary[10],
         "first_month": summary[11],
         "last_month": summary[12],
+        "is_excluded": exclusion["is_excluded"] if exclusion else False,
+        "exclusion": exclusion,
     }
 
     if nppes:
@@ -208,7 +260,7 @@ def provider_procedure_timeseries(npi: str, limit: int = 4):
 
 
 @router.get("/{npi}/procedures")
-def provider_procedures(npi: str, limit: int = 20):
+def provider_procedures(npi: str, limit: int = 20, offset: int = 0):
     """Top procedures for one provider by spending."""
     db = get_db()
     rows = db.execute("""
@@ -223,7 +275,8 @@ def provider_procedures(npi: str, limit: int = 20):
         WHERE p.npi = ?
         ORDER BY p.total_paid DESC
         LIMIT ?
-    """, [npi, limit]).fetchall()
+        OFFSET ?
+    """, [npi, limit, offset]).fetchall()
     return [
         {
             "hcpcs_code": r[0],

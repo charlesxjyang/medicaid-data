@@ -439,6 +439,54 @@ tbody td {
   color: var(--text-muted);
 }
 
+/* OIG Exclusion */
+.excluded-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 6px;
+  vertical-align: middle;
+  letter-spacing: 0.04em;
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+.exclusion-banner {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-top: 8px;
+}
+
+/* Load More */
+.load-more-btn {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  margin-top: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.load-more-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+.load-more-btn:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
 /* Animations */
 @keyframes pulse {
   0%, 100% { opacity: 0.4; }

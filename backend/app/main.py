@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 
-from .routers import stats, providers, procedures, map_routes
+from .routers import stats, providers, procedures, map_routes, analysis
 
 app = FastAPI(title="Medicaid Provider Spending API", version="1.0.0")
 
@@ -26,6 +26,7 @@ app.include_router(stats.router, prefix="/api/stats", tags=["stats"])
 app.include_router(providers.router, prefix="/api/providers", tags=["providers"])
 app.include_router(procedures.router, prefix="/api/procedures", tags=["procedures"])
 app.include_router(map_routes.router, prefix="/api/map", tags=["map"])
+app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
 
 # Serve the Arrow file as a static file if it exists
 ARROW_DIR = os.environ.get("ARROW_DIR", "/Users/charl/Programming/medicaid/frontend/public/data")

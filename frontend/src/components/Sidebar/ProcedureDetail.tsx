@@ -1,8 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
 import { fmtDollars, fmtNumber } from "../../utils";
+import type { ProcedureProvider } from "../../types/api";
+
+const PAGE_SIZE = 25;
 
 type SortKey = "name" | "claims" | "per_claim" | "paid";
 type SortDir = "asc" | "desc";
@@ -11,13 +14,23 @@ export function ProcedureDetail() {
   const { selectedProcedure, selectedState, setSelectedProcedure, setSelectedNpi } = useDashboard();
   const [sortKey, setSortKey] = useState<SortKey>("paid");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [allProviders, setAllProviders] = useState<ProcedureProvider[]>([]);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const { data: detail, loading } = useApi(
     () => (selectedProcedure ? api.procedureDetail(selectedProcedure) : Promise.resolve(null)),
     [selectedProcedure]
   );
   const { data: providers } = useApi(
-    () => (selectedProcedure ? api.procedureProviders(selectedProcedure) : Promise.resolve(null)),
+    () => {
+      if (!selectedProcedure) return Promise.resolve(null);
+      return api.procedureProviders(selectedProcedure, PAGE_SIZE, 0).then((rows) => {
+        setAllProviders(rows);
+        setHasMore(rows.length >= PAGE_SIZE);
+        return rows;
+      });
+    },
     [selectedProcedure]
   );
   const { data: benchmarks } = useApi(
@@ -27,6 +40,18 @@ export function ProcedureDetail() {
         : Promise.resolve(null),
     [selectedProcedure, selectedState]
   );
+
+  const loadMore = useCallback(() => {
+    if (!selectedProcedure) return;
+    setLoadingMore(true);
+    api
+      .procedureProviders(selectedProcedure, PAGE_SIZE, allProviders.length)
+      .then((rows) => {
+        setAllProviders((prev) => [...prev, ...rows]);
+        setHasMore(rows.length >= PAGE_SIZE);
+      })
+      .finally(() => setLoadingMore(false));
+  }, [selectedProcedure, allProviders.length]);
 
   const benchmark = benchmarks?.[0];
   const showState = !!selectedState;
@@ -44,8 +69,8 @@ export function ProcedureDetail() {
     sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "";
 
   const sorted = useMemo(() => {
-    if (!providers) return [];
-    return [...providers].sort((a, b) => {
+    if (!allProviders.length) return [];
+    return [...allProviders].sort((a, b) => {
       let av: number | string = 0;
       let bv: number | string = 0;
       switch (sortKey) {
@@ -68,7 +93,7 @@ export function ProcedureDetail() {
       }
       return sortDir === "asc" ? (av as number) - (bv as number) : (bv as number) - (av as number);
     });
-  }, [providers, sortKey, sortDir]);
+  }, [allProviders, sortKey, sortDir]);
 
   if (!selectedProcedure) return null;
 
@@ -166,6 +191,15 @@ export function ProcedureDetail() {
               })}
             </tbody>
           </table>
+          {hasMore && (
+            <button
+              className="load-more-btn"
+              onClick={loadMore}
+              disabled={loadingMore}
+            >
+              {loadingMore ? "Loading…" : "Load more"}
+            </button>
+          )}
         </div>
       )}
     </div>
