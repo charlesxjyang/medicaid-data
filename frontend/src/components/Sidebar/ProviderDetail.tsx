@@ -3,7 +3,7 @@ import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
 import { fmtDollars, fmtNumber, fmtMonth, fmtExclType, fmtExclDate } from "../../utils";
-import type { ProviderProcedure, ProcedureBenchmark } from "../../types/api";
+import type { ProcedureBenchmark } from "../../types/api";
 
 const PRELOAD = 150;
 const PAGE_SIZE = 20;
