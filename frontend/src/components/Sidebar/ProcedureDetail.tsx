@@ -5,7 +5,7 @@ import { useDashboard } from "../../store/dashboard";
 import { fmtDollars, fmtNumber } from "../../utils";
 import type { ProcedureProvider } from "../../types/api";
 
-const PRELOAD = 100;
+const PRELOAD = 150;
 const PAGE_SIZE = 25;
 
 type SortKey = "name" | "claims" | "per_claim" | "paid";

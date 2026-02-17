@@ -5,7 +5,7 @@ import { useDashboard } from "../../store/dashboard";
 import { fmtDollars, fmtNumber, fmtMonth, fmtExclType, fmtExclDate } from "../../utils";
 import type { ProviderProcedure, ProcedureBenchmark } from "../../types/api";
 
-const PRELOAD = 100;
+const PRELOAD = 150;
 const PAGE_SIZE = 20;
 
 type SortKey = "total_claims" | "total_paid" | "per_claim";
