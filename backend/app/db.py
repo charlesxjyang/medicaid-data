@@ -3,10 +3,7 @@ import threading
 import duckdb
 import os
 
-DB_PATH = os.environ.get(
-    "DUCKDB_PATH",
-    os.path.join(os.path.dirname(__file__), "..", "..", "medicaid.duckdb"),
-)
+DB_PATH = os.environ.get("DUCKDB_PATH", "/Users/charl/Programming/medicaid/medicaid.duckdb")
 
 _local = threading.local()
 

@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
 import { fmtDollars, fmtNumber } from "../../utils";
@@ -13,32 +14,28 @@ export function TopProcedures() {
   const { selectedState, setSelectedProcedure } = useDashboard();
   const [sortKey, setSortKey] = useState<SortKey>("total_paid");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [allData, setAllData] = useState<ProcedureSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [extraData, setExtraData] = useState<ProcedureSummary[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const stateRef = useRef(selectedState);
+
+  const { data, loading } = useApi(
+    () => api.topProcedures(selectedState ?? undefined, PAGE_SIZE, 0),
+    [selectedState]
+  );
 
   useEffect(() => {
-    stateRef.current = selectedState;
-    setLoading(true);
-    setAllData([]);
-    setHasMore(true);
-    api.topProcedures(selectedState ?? undefined, PAGE_SIZE, 0).then((rows) => {
-      if (stateRef.current !== selectedState) return;
-      setAllData(rows);
-      setHasMore(rows.length >= PAGE_SIZE);
-      setLoading(false);
-    });
-  }, [selectedState]);
+    setExtraData([]);
+    setHasMore((data?.length ?? 0) >= PAGE_SIZE);
+  }, [data]);
+
+  const allData = data ? [...data, ...extraData] : [];
 
   const loadMore = useCallback(() => {
     setLoadingMore(true);
     api
       .topProcedures(selectedState ?? undefined, PAGE_SIZE, allData.length)
       .then((rows) => {
-        if (stateRef.current !== selectedState) return;
-        setAllData((prev) => [...prev, ...rows]);
+        setExtraData((prev) => [...prev, ...rows]);
         setHasMore(rows.length >= PAGE_SIZE);
       })
       .finally(() => setLoadingMore(false));

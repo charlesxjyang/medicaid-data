@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
@@ -19,27 +19,25 @@ export function ProviderDetail() {
   const { selectedNpi, setSelectedNpi, setSelectedProcedure } = useDashboard();
   const [sortKey, setSortKey] = useState<SortKey>("total_paid");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [allProcedures, setAllProcedures] = useState<ProviderProcedure[]>([]);
+  const [extraProcedures, setExtraProcedures] = useState<ProviderProcedure[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const npiRef = useRef(selectedNpi);
 
   const { data: detail, loading } = useApi(
     () => (selectedNpi ? api.providerDetail(selectedNpi) : Promise.resolve(null)),
     [selectedNpi]
   );
+  const { data: procedures } = useApi(
+    () => (selectedNpi ? api.providerProcedures(selectedNpi, PAGE_SIZE, 0) : Promise.resolve(null)),
+    [selectedNpi]
+  );
 
   useEffect(() => {
-    npiRef.current = selectedNpi;
-    if (!selectedNpi) { setAllProcedures([]); return; }
-    setAllProcedures([]);
-    setHasMore(true);
-    api.providerProcedures(selectedNpi, PAGE_SIZE, 0).then((rows) => {
-      if (npiRef.current !== selectedNpi) return;
-      setAllProcedures(rows);
-      setHasMore(rows.length >= PAGE_SIZE);
-    });
-  }, [selectedNpi]);
+    setExtraProcedures([]);
+    setHasMore((procedures?.length ?? 0) >= PAGE_SIZE);
+  }, [procedures]);
+
+  const allProcedures = procedures ? [...procedures, ...extraProcedures] : [];
 
   const loadMore = useCallback(() => {
     if (!selectedNpi) return;
@@ -47,8 +45,7 @@ export function ProviderDetail() {
     api
       .providerProcedures(selectedNpi, PAGE_SIZE, allProcedures.length)
       .then((rows) => {
-        if (npiRef.current !== selectedNpi) return;
-        setAllProcedures((prev) => [...prev, ...rows]);
+        setExtraProcedures((prev) => [...prev, ...rows]);
         setHasMore(rows.length >= PAGE_SIZE);
       })
       .finally(() => setLoadingMore(false));
@@ -61,7 +58,7 @@ export function ProviderDetail() {
       const state = detail?.state ?? undefined;
       return api.procedureBenchmarks(codes, state);
     },
-    [allProcedures, detail?.state]
+    [allProcedures.length, detail?.state]
   );
 
   const benchmarkMap = useMemo(() => {
