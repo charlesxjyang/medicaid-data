@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
 import { fmtDollars, fmtNumber, fmtMonth, fmtExclType, fmtExclDate } from "../../utils";
 import type { ProviderProcedure, ProcedureBenchmark } from "../../types/api";
 
+const PRELOAD = 100;
 const PAGE_SIZE = 20;
 
 type SortKey = "total_claims" | "total_paid" | "per_claim";
@@ -19,54 +20,25 @@ export function ProviderDetail() {
   const { selectedNpi, setSelectedNpi, setSelectedProcedure } = useDashboard();
   const [sortKey, setSortKey] = useState<SortKey>("total_paid");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [procedures, setProcedures] = useState<ProviderProcedure[]>([]);
-  const [hasMore, setHasMore] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const offsetRef = useRef(0);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const { data: detail, loading } = useApi(
     () => (selectedNpi ? api.providerDetail(selectedNpi) : Promise.resolve(null)),
     [selectedNpi]
   );
-
-  useEffect(() => {
-    if (!selectedNpi) return;
-    let cancelled = false;
-    setProcedures([]);
-    offsetRef.current = 0;
-    api.providerProcedures(selectedNpi, PAGE_SIZE, 0).then((rows) => {
-      if (cancelled) return;
-      setProcedures(rows);
-      offsetRef.current = rows.length;
-      setHasMore(rows.length >= PAGE_SIZE);
-    });
-    return () => { cancelled = true; };
-  }, [selectedNpi]);
-
-  const loadMore = useCallback(() => {
-    if (!selectedNpi) return;
-    const offset = offsetRef.current;
-    if (offset === 0) return;
-    setLoadingMore(true);
-    api.providerProcedures(selectedNpi, PAGE_SIZE, offset).then((rows) => {
-      setProcedures((prev) => {
-        const existing = new Set(prev.map((p) => p.hcpcs_code));
-        const fresh = rows.filter((r) => !existing.has(r.hcpcs_code));
-        return [...prev, ...fresh];
-      });
-      offsetRef.current = offset + rows.length;
-      setHasMore(rows.length >= PAGE_SIZE);
-    }).finally(() => setLoadingMore(false));
-  }, [selectedNpi]);
+  const { data: procedures } = useApi(
+    () => (selectedNpi ? api.providerProcedures(selectedNpi, PRELOAD, 0) : Promise.resolve(null)),
+    [selectedNpi]
+  );
 
   const { data: benchmarks } = useApi(
     () => {
-      if (!procedures.length) return Promise.resolve(null);
+      if (!procedures?.length) return Promise.resolve(null);
       const codes = procedures.map((p) => p.hcpcs_code).join(",");
       const state = detail?.state ?? undefined;
       return api.procedureBenchmarks(codes, state);
     },
-    [procedures.length, detail?.state]
+    [procedures?.length, detail?.state]
   );
 
   const benchmarkMap = useMemo(() => {
@@ -77,10 +49,13 @@ export function ProviderDetail() {
   }, [benchmarks]);
 
   const sorted = useMemo(() => {
-    if (!procedures.length) return null;
+    if (!procedures?.length) return null;
     const dir = sortDir === "desc" ? 1 : -1;
     return [...procedures].sort((a, b) => dir * (getValue(b, sortKey) - getValue(a, sortKey)));
   }, [procedures, sortKey, sortDir]);
+
+  const visible = sorted?.slice(0, visibleCount);
+  const hasMore = sorted ? visibleCount < sorted.length : false;
 
   function toggleSort(key: SortKey) {
     if (key === sortKey) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
@@ -146,7 +121,7 @@ export function ProviderDetail() {
         </div>
       )}
 
-      {sorted && sorted.length > 0 && (
+      {visible && visible.length > 0 && (
         <div className="detail-procedures">
           <h4>Top Procedures</h4>
           <table>
@@ -168,7 +143,7 @@ export function ProviderDetail() {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((p) => (
+              {visible.map((p) => (
                 <tr
                   key={p.hcpcs_code}
                   className="clickable-row"
@@ -188,10 +163,9 @@ export function ProviderDetail() {
           {hasMore && (
             <button
               className="load-more-btn"
-              onClick={loadMore}
-              disabled={loadingMore}
+              onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
             >
-              {loadingMore ? "Loading…" : "Load more"}
+              Load more
             </button>
           )}
         </div>

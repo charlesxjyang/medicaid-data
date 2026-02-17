@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
+import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
 import { fmtDollars, fmtNumber } from "../../utils";
 import type { ProcedureSummary } from "../../types/api";
 
+const PRELOAD = 100;
 const PAGE_SIZE = 25;
 
 type SortKey = "total_paid" | "unique_providers";
@@ -13,46 +15,21 @@ export function TopProcedures() {
   const { selectedState, setSelectedProcedure } = useDashboard();
   const [sortKey, setSortKey] = useState<SortKey>("total_paid");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [items, setItems] = useState<ProcedureSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [hasMore, setHasMore] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const offsetRef = useRef(0);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setItems([]);
-    offsetRef.current = 0;
-    api.topProcedures(selectedState ?? undefined, PAGE_SIZE, 0).then((rows) => {
-      if (cancelled) return;
-      setItems(rows);
-      offsetRef.current = rows.length;
-      setHasMore(rows.length >= PAGE_SIZE);
-    }).finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [selectedState]);
-
-  const loadMore = useCallback(() => {
-    const offset = offsetRef.current;
-    if (offset === 0) return;
-    setLoadingMore(true);
-    api.topProcedures(selectedState ?? undefined, PAGE_SIZE, offset).then((rows) => {
-      setItems((prev) => {
-        const existing = new Set(prev.map((p) => p.hcpcs_code));
-        const fresh = rows.filter((r) => !existing.has(r.hcpcs_code));
-        return [...prev, ...fresh];
-      });
-      offsetRef.current = offset + rows.length;
-      setHasMore(rows.length >= PAGE_SIZE);
-    }).finally(() => setLoadingMore(false));
-  }, [selectedState]);
+  const { data: items, loading } = useApi(
+    () => api.topProcedures(selectedState ?? undefined, PRELOAD, 0),
+    [selectedState]
+  );
 
   const sorted = useMemo(() => {
-    if (!items.length) return null;
+    if (!items?.length) return null;
     const dir = sortDir === "desc" ? 1 : -1;
     return [...items].sort((a, b) => dir * ((b[sortKey] ?? 0) - (a[sortKey] ?? 0)));
   }, [items, sortKey, sortDir]);
+
+  const visible = sorted?.slice(0, visibleCount);
+  const hasMore = sorted ? visibleCount < sorted.length : false;
 
   function toggleSort(key: SortKey) {
     if (key === sortKey) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
@@ -64,7 +41,7 @@ export function TopProcedures() {
   return (
     <div className="table-panel">
       <h4>Top Procedures {selectedState ? `in ${selectedState}` : "(National)"}</h4>
-      {loading || !sorted ? (
+      {loading || !visible ? (
         <div className="table-skeleton" />
       ) : (
         <>
@@ -82,7 +59,7 @@ export function TopProcedures() {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((p) => (
+              {visible.map((p) => (
                 <tr
                   key={p.hcpcs_code}
                   className="clickable-row"
@@ -99,10 +76,9 @@ export function TopProcedures() {
           {hasMore && (
             <button
               className="load-more-btn"
-              onClick={loadMore}
-              disabled={loadingMore}
+              onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
             >
-              {loadingMore ? "Loading…" : "Load more"}
+              Load more
             </button>
           )}
         </>

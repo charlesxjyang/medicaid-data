@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
 import { fmtDollars, fmtNumber } from "../../utils";
 import type { ProcedureProvider } from "../../types/api";
 
+const PRELOAD = 100;
 const PAGE_SIZE = 25;
 
 type SortKey = "name" | "claims" | "per_claim" | "paid";
@@ -14,45 +15,16 @@ export function ProcedureDetail() {
   const { selectedProcedure, selectedState, setSelectedProcedure, setSelectedNpi } = useDashboard();
   const [sortKey, setSortKey] = useState<SortKey>("paid");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [providers, setProviders] = useState<ProcedureProvider[]>([]);
-  const [hasMore, setHasMore] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const offsetRef = useRef(0);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const { data: detail, loading } = useApi(
     () => (selectedProcedure ? api.procedureDetail(selectedProcedure) : Promise.resolve(null)),
     [selectedProcedure]
   );
-
-  useEffect(() => {
-    if (!selectedProcedure) return;
-    let cancelled = false;
-    setProviders([]);
-    offsetRef.current = 0;
-    api.procedureProviders(selectedProcedure, PAGE_SIZE, 0).then((rows) => {
-      if (cancelled) return;
-      setProviders(rows);
-      offsetRef.current = rows.length;
-      setHasMore(rows.length >= PAGE_SIZE);
-    });
-    return () => { cancelled = true; };
-  }, [selectedProcedure]);
-
-  const loadMore = useCallback(() => {
-    if (!selectedProcedure) return;
-    const offset = offsetRef.current;
-    if (offset === 0) return;
-    setLoadingMore(true);
-    api.procedureProviders(selectedProcedure, PAGE_SIZE, offset).then((rows) => {
-      setProviders((prev) => {
-        const existing = new Set(prev.map((p) => p.npi));
-        const fresh = rows.filter((r) => !existing.has(r.npi));
-        return [...prev, ...fresh];
-      });
-      offsetRef.current = offset + rows.length;
-      setHasMore(rows.length >= PAGE_SIZE);
-    }).finally(() => setLoadingMore(false));
-  }, [selectedProcedure]);
+  const { data: providers } = useApi(
+    () => (selectedProcedure ? api.procedureProviders(selectedProcedure, PRELOAD, 0) : Promise.resolve(null)),
+    [selectedProcedure]
+  );
 
   const { data: benchmarks } = useApi(
     () =>
@@ -78,7 +50,7 @@ export function ProcedureDetail() {
     sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "";
 
   const sorted = useMemo(() => {
-    if (!providers.length) return [];
+    if (!providers?.length) return [];
     return [...providers].sort((a, b) => {
       let av: number | string = 0;
       let bv: number | string = 0;
@@ -103,6 +75,9 @@ export function ProcedureDetail() {
       return sortDir === "asc" ? (av as number) - (bv as number) : (bv as number) - (av as number);
     });
   }, [providers, sortKey, sortDir]);
+
+  const visible = sorted.slice(0, visibleCount);
+  const hasMore = visibleCount < sorted.length;
 
   if (!selectedProcedure) return null;
 
@@ -143,7 +118,7 @@ export function ProcedureDetail() {
         </div>
       )}
 
-      {sorted.length > 0 && (
+      {visible.length > 0 && (
         <div className="detail-procedures">
           <h4>Top Providers</h4>
           <table>
@@ -166,7 +141,7 @@ export function ProcedureDetail() {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((p) => {
+              {visible.map((p) => {
                 const perClaim = p.total_claims > 0 ? p.total_paid / p.total_claims : null;
                 return (
                   <tr
@@ -203,10 +178,9 @@ export function ProcedureDetail() {
           {hasMore && (
             <button
               className="load-more-btn"
-              onClick={loadMore}
-              disabled={loadingMore}
+              onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
             >
-              {loadingMore ? "Loading…" : "Load more"}
+              Load more
             </button>
           )}
         </div>

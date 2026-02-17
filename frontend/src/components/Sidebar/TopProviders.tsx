@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
+import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
 import { fmtDollars, fmtNumber } from "../../utils";
 import type { ProviderSummary } from "../../types/api";
 
+const PRELOAD = 100;
 const PAGE_SIZE = 25;
 
 type SortKey = "total_paid" | "total_claims" | "per_claim";
@@ -18,46 +20,21 @@ export function TopProviders() {
   const { selectedState, setSelectedNpi } = useDashboard();
   const [sortKey, setSortKey] = useState<SortKey>("total_paid");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [items, setItems] = useState<ProviderSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [hasMore, setHasMore] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const offsetRef = useRef(0);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setItems([]);
-    offsetRef.current = 0;
-    api.topProviders(selectedState ?? undefined, PAGE_SIZE, 0).then((rows) => {
-      if (cancelled) return;
-      setItems(rows);
-      offsetRef.current = rows.length;
-      setHasMore(rows.length >= PAGE_SIZE);
-    }).finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [selectedState]);
-
-  const loadMore = useCallback(() => {
-    const offset = offsetRef.current;
-    if (offset === 0) return;
-    setLoadingMore(true);
-    api.topProviders(selectedState ?? undefined, PAGE_SIZE, offset).then((rows) => {
-      setItems((prev) => {
-        const existing = new Set(prev.map((p) => p.npi));
-        const fresh = rows.filter((r) => !existing.has(r.npi));
-        return [...prev, ...fresh];
-      });
-      offsetRef.current = offset + rows.length;
-      setHasMore(rows.length >= PAGE_SIZE);
-    }).finally(() => setLoadingMore(false));
-  }, [selectedState]);
+  const { data: items, loading } = useApi(
+    () => api.topProviders(selectedState ?? undefined, PRELOAD, 0),
+    [selectedState]
+  );
 
   const sorted = useMemo(() => {
-    if (!items.length) return null;
+    if (!items?.length) return null;
     const dir = sortDir === "desc" ? 1 : -1;
     return [...items].sort((a, b) => dir * (getValue(b, sortKey) - getValue(a, sortKey)));
   }, [items, sortKey, sortDir]);
+
+  const visible = sorted?.slice(0, visibleCount);
+  const hasMore = sorted ? visibleCount < sorted.length : false;
 
   function toggleSort(key: SortKey) {
     if (key === sortKey) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
@@ -69,7 +46,7 @@ export function TopProviders() {
   return (
     <div className="table-panel">
       <h4>Top Providers {selectedState ? `in ${selectedState}` : "(National)"}</h4>
-      {loading || !sorted ? (
+      {loading || !visible ? (
         <div className="table-skeleton" />
       ) : (
         <>
@@ -90,7 +67,7 @@ export function TopProviders() {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((p) => (
+              {visible.map((p) => (
                 <tr
                   key={p.npi}
                   className="clickable-row"
@@ -115,10 +92,9 @@ export function TopProviders() {
           {hasMore && (
             <button
               className="load-more-btn"
-              onClick={loadMore}
-              disabled={loadingMore}
+              onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
             >
-              {loadingMore ? "Loading…" : "Load more"}
+              Load more
             </button>
           )}
         </>
