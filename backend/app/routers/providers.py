@@ -9,14 +9,15 @@ _oig_cache: dict = {}
 
 
 def _has_oig_table(db) -> bool:
-    """Check if oig_exclusions table exists (cached after first check)."""
-    if "result" not in _oig_cache:
-        try:
-            db.execute("SELECT 1 FROM oig_exclusions LIMIT 0")
-            _oig_cache["result"] = True
-        except Exception:
-            _oig_cache["result"] = False
-    return _oig_cache["result"]
+    """Check if oig_exclusions table exists (only caches True)."""
+    if _oig_cache.get("result"):
+        return True
+    try:
+        db.execute("SELECT 1 FROM oig_exclusions LIMIT 0")
+        _oig_cache["result"] = True
+        return True
+    except Exception:
+        return False
 
 
 @router.get("/search")
