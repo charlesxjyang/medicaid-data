@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
@@ -22,22 +22,24 @@ export function ProviderDetail() {
   const [allProcedures, setAllProcedures] = useState<ProviderProcedure[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const npiRef = useRef(selectedNpi);
 
   const { data: detail, loading } = useApi(
     () => (selectedNpi ? api.providerDetail(selectedNpi) : Promise.resolve(null)),
     [selectedNpi]
   );
-  useApi(
-    () => {
-      if (!selectedNpi) return Promise.resolve(null);
-      return api.providerProcedures(selectedNpi, PAGE_SIZE, 0).then((rows) => {
-        setAllProcedures(rows);
-        setHasMore(rows.length >= PAGE_SIZE);
-        return rows;
-      });
-    },
-    [selectedNpi]
-  );
+
+  useEffect(() => {
+    npiRef.current = selectedNpi;
+    if (!selectedNpi) { setAllProcedures([]); return; }
+    setAllProcedures([]);
+    setHasMore(true);
+    api.providerProcedures(selectedNpi, PAGE_SIZE, 0).then((rows) => {
+      if (npiRef.current !== selectedNpi) return;
+      setAllProcedures(rows);
+      setHasMore(rows.length >= PAGE_SIZE);
+    });
+  }, [selectedNpi]);
 
   const loadMore = useCallback(() => {
     if (!selectedNpi) return;
@@ -45,6 +47,7 @@ export function ProviderDetail() {
     api
       .providerProcedures(selectedNpi, PAGE_SIZE, allProcedures.length)
       .then((rows) => {
+        if (npiRef.current !== selectedNpi) return;
         setAllProcedures((prev) => [...prev, ...rows]);
         setHasMore(rows.length >= PAGE_SIZE);
       })

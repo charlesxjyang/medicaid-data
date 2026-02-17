@@ -76,7 +76,7 @@ def top_providers(
             FROM map_providers mp
             {oig_join}
             WHERE mp.state = ?
-            ORDER BY mp.{sort_by} DESC
+            ORDER BY mp.{sort_by} DESC, mp.npi
             LIMIT ?
             OFFSET ?
         """, [state, limit, offset]).fetchall()
@@ -87,7 +87,7 @@ def top_providers(
                    {oig_select}
             FROM map_providers mp
             {oig_join}
-            ORDER BY mp.{sort_by} DESC
+            ORDER BY mp.{sort_by} DESC, mp.npi
             LIMIT ?
             OFFSET ?
         """, [limit, offset]).fetchall()
@@ -273,7 +273,7 @@ def provider_procedures(npi: str, limit: int = 20, offset: int = 0):
         FROM agg_provider_procedure p
         LEFT JOIN hcpcs_codes h ON h.hcpcs_code = p.hcpcs_code
         WHERE p.npi = ?
-        ORDER BY p.total_paid DESC
+        ORDER BY p.total_paid DESC, p.hcpcs_code
         LIMIT ?
         OFFSET ?
     """, [npi, limit, offset]).fetchall()

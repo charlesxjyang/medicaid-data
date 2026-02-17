@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
@@ -17,29 +17,24 @@ export function ProcedureDetail() {
   const [allProviders, setAllProviders] = useState<ProcedureProvider[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const procRef = useRef(selectedProcedure);
 
   const { data: detail, loading } = useApi(
     () => (selectedProcedure ? api.procedureDetail(selectedProcedure) : Promise.resolve(null)),
     [selectedProcedure]
   );
-  useApi(
-    () => {
-      if (!selectedProcedure) return Promise.resolve(null);
-      return api.procedureProviders(selectedProcedure, PAGE_SIZE, 0).then((rows) => {
-        setAllProviders(rows);
-        setHasMore(rows.length >= PAGE_SIZE);
-        return rows;
-      });
-    },
-    [selectedProcedure]
-  );
-  const { data: benchmarks } = useApi(
-    () =>
-      selectedProcedure
-        ? api.procedureBenchmarks(selectedProcedure, selectedState ?? undefined)
-        : Promise.resolve(null),
-    [selectedProcedure, selectedState]
-  );
+
+  useEffect(() => {
+    procRef.current = selectedProcedure;
+    if (!selectedProcedure) { setAllProviders([]); return; }
+    setAllProviders([]);
+    setHasMore(true);
+    api.procedureProviders(selectedProcedure, PAGE_SIZE, 0).then((rows) => {
+      if (procRef.current !== selectedProcedure) return;
+      setAllProviders(rows);
+      setHasMore(rows.length >= PAGE_SIZE);
+    });
+  }, [selectedProcedure]);
 
   const loadMore = useCallback(() => {
     if (!selectedProcedure) return;
@@ -47,11 +42,20 @@ export function ProcedureDetail() {
     api
       .procedureProviders(selectedProcedure, PAGE_SIZE, allProviders.length)
       .then((rows) => {
+        if (procRef.current !== selectedProcedure) return;
         setAllProviders((prev) => [...prev, ...rows]);
         setHasMore(rows.length >= PAGE_SIZE);
       })
       .finally(() => setLoadingMore(false));
   }, [selectedProcedure, allProviders.length]);
+
+  const { data: benchmarks } = useApi(
+    () =>
+      selectedProcedure
+        ? api.procedureBenchmarks(selectedProcedure, selectedState ?? undefined)
+        : Promise.resolve(null),
+    [selectedProcedure, selectedState]
+  );
 
   const benchmark = benchmarks?.[0];
   const showState = !!selectedState;

@@ -47,7 +47,7 @@ def top_procedures(state: Optional[str] = None, limit: int = 25, offset: int = 0
             LEFT JOIN hcpcs_codes h ON h.hcpcs_code = p.hcpcs_code
             WHERE m.state = ?
             GROUP BY p.hcpcs_code, h.short_description
-            ORDER BY total_paid DESC
+            ORDER BY total_paid DESC, p.hcpcs_code
             LIMIT ?
             OFFSET ?
         """, [state, limit, offset]).fetchall()
@@ -57,7 +57,7 @@ def top_procedures(state: Optional[str] = None, limit: int = 25, offset: int = 0
                    a.total_claims
             FROM hcpcs_codes h
             LEFT JOIN agg_procedure_summary a ON a.hcpcs_code = h.hcpcs_code
-            ORDER BY h.total_paid DESC
+            ORDER BY h.total_paid DESC, h.hcpcs_code
             LIMIT ?
             OFFSET ?
         """, [limit, offset]).fetchall()
@@ -156,7 +156,7 @@ def procedure_providers(code: str, limit: int = 25, offset: int = 0):
         FROM agg_provider_procedure p
         LEFT JOIN map_providers m ON m.npi = p.npi
         WHERE p.hcpcs_code = ?
-        ORDER BY p.total_paid DESC
+        ORDER BY p.total_paid DESC, p.npi
         LIMIT ?
         OFFSET ?
     """, [code, limit, offset]).fetchall()
