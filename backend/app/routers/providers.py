@@ -174,11 +174,12 @@ def provider_detail(npi: str):
             LIMIT 1
         """, [npi]).fetchone()
         if oig_row:
+            reindate = oig_row[2]
             exclusion = {
                 "is_excluded": True,
                 "exclusion_type": oig_row[0],
                 "exclusion_date": oig_row[1],
-                "reinstatement_date": oig_row[2] if oig_row[2] else None,
+                "reinstatement_date": reindate if reindate and reindate != "00000000" else None,
             }
 
     result = {
