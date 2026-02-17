@@ -1,5 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { useApi } from "../../hooks/useApi";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
 import { fmtDollars, fmtNumber } from "../../utils";
@@ -14,38 +13,46 @@ export function TopProcedures() {
   const { selectedState, setSelectedProcedure } = useDashboard();
   const [sortKey, setSortKey] = useState<SortKey>("total_paid");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [extraData, setExtraData] = useState<ProcedureSummary[]>([]);
+  const [items, setItems] = useState<ProcedureSummary[]>([]);
+  const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-
-  const { data, loading } = useApi(
-    () => api.topProcedures(selectedState ?? undefined, PAGE_SIZE, 0),
-    [selectedState]
-  );
+  const offsetRef = useRef(0);
 
   useEffect(() => {
-    setExtraData([]);
-    setHasMore((data?.length ?? 0) >= PAGE_SIZE);
-  }, [data]);
-
-  const allData = data ? [...data, ...extraData] : [];
+    let cancelled = false;
+    setLoading(true);
+    setItems([]);
+    offsetRef.current = 0;
+    api.topProcedures(selectedState ?? undefined, PAGE_SIZE, 0).then((rows) => {
+      if (cancelled) return;
+      setItems(rows);
+      offsetRef.current = rows.length;
+      setHasMore(rows.length >= PAGE_SIZE);
+    }).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedState]);
 
   const loadMore = useCallback(() => {
+    const offset = offsetRef.current;
+    if (offset === 0) return;
     setLoadingMore(true);
-    api
-      .topProcedures(selectedState ?? undefined, PAGE_SIZE, allData.length)
-      .then((rows) => {
-        setExtraData((prev) => [...prev, ...rows]);
-        setHasMore(rows.length >= PAGE_SIZE);
-      })
-      .finally(() => setLoadingMore(false));
-  }, [selectedState, allData.length]);
+    api.topProcedures(selectedState ?? undefined, PAGE_SIZE, offset).then((rows) => {
+      setItems((prev) => {
+        const existing = new Set(prev.map((p) => p.hcpcs_code));
+        const fresh = rows.filter((r) => !existing.has(r.hcpcs_code));
+        return [...prev, ...fresh];
+      });
+      offsetRef.current = offset + rows.length;
+      setHasMore(rows.length >= PAGE_SIZE);
+    }).finally(() => setLoadingMore(false));
+  }, [selectedState]);
 
   const sorted = useMemo(() => {
-    if (!allData.length) return null;
+    if (!items.length) return null;
     const dir = sortDir === "desc" ? 1 : -1;
-    return [...allData].sort((a, b) => dir * ((b[sortKey] ?? 0) - (a[sortKey] ?? 0)));
-  }, [allData, sortKey, sortDir]);
+    return [...items].sort((a, b) => dir * ((b[sortKey] ?? 0) - (a[sortKey] ?? 0)));
+  }, [items, sortKey, sortDir]);
 
   function toggleSort(key: SortKey) {
     if (key === sortKey) setSortDir((d) => (d === "desc" ? "asc" : "desc"));

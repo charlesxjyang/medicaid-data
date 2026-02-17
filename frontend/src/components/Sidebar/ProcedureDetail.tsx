@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useApi } from "../../hooks/useApi";
 import { api } from "../../api/client";
 import { useDashboard } from "../../store/dashboard";
@@ -14,37 +14,45 @@ export function ProcedureDetail() {
   const { selectedProcedure, selectedState, setSelectedProcedure, setSelectedNpi } = useDashboard();
   const [sortKey, setSortKey] = useState<SortKey>("paid");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [extraProviders, setExtraProviders] = useState<ProcedureProvider[]>([]);
+  const [providers, setProviders] = useState<ProcedureProvider[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const offsetRef = useRef(0);
 
   const { data: detail, loading } = useApi(
     () => (selectedProcedure ? api.procedureDetail(selectedProcedure) : Promise.resolve(null)),
     [selectedProcedure]
   );
-  const { data: providers } = useApi(
-    () => (selectedProcedure ? api.procedureProviders(selectedProcedure, PAGE_SIZE, 0) : Promise.resolve(null)),
-    [selectedProcedure]
-  );
 
   useEffect(() => {
-    setExtraProviders([]);
-    setHasMore((providers?.length ?? 0) >= PAGE_SIZE);
-  }, [providers]);
-
-  const allProviders = providers ? [...providers, ...extraProviders] : [];
+    if (!selectedProcedure) return;
+    let cancelled = false;
+    setProviders([]);
+    offsetRef.current = 0;
+    api.procedureProviders(selectedProcedure, PAGE_SIZE, 0).then((rows) => {
+      if (cancelled) return;
+      setProviders(rows);
+      offsetRef.current = rows.length;
+      setHasMore(rows.length >= PAGE_SIZE);
+    });
+    return () => { cancelled = true; };
+  }, [selectedProcedure]);
 
   const loadMore = useCallback(() => {
     if (!selectedProcedure) return;
+    const offset = offsetRef.current;
+    if (offset === 0) return;
     setLoadingMore(true);
-    api
-      .procedureProviders(selectedProcedure, PAGE_SIZE, allProviders.length)
-      .then((rows) => {
-        setExtraProviders((prev) => [...prev, ...rows]);
-        setHasMore(rows.length >= PAGE_SIZE);
-      })
-      .finally(() => setLoadingMore(false));
-  }, [selectedProcedure, allProviders.length]);
+    api.procedureProviders(selectedProcedure, PAGE_SIZE, offset).then((rows) => {
+      setProviders((prev) => {
+        const existing = new Set(prev.map((p) => p.npi));
+        const fresh = rows.filter((r) => !existing.has(r.npi));
+        return [...prev, ...fresh];
+      });
+      offsetRef.current = offset + rows.length;
+      setHasMore(rows.length >= PAGE_SIZE);
+    }).finally(() => setLoadingMore(false));
+  }, [selectedProcedure]);
 
   const { data: benchmarks } = useApi(
     () =>
@@ -70,8 +78,8 @@ export function ProcedureDetail() {
     sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "";
 
   const sorted = useMemo(() => {
-    if (!allProviders.length) return [];
-    return [...allProviders].sort((a, b) => {
+    if (!providers.length) return [];
+    return [...providers].sort((a, b) => {
       let av: number | string = 0;
       let bv: number | string = 0;
       switch (sortKey) {
@@ -94,7 +102,7 @@ export function ProcedureDetail() {
       }
       return sortDir === "asc" ? (av as number) - (bv as number) : (bv as number) - (av as number);
     });
-  }, [allProviders, sortKey, sortDir]);
+  }, [providers, sortKey, sortDir]);
 
   if (!selectedProcedure) return null;
 
