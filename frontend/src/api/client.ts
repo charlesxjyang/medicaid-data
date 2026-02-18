@@ -33,9 +33,9 @@ export const api = {
 
   searchProviders: (q: string) =>
     get<ProviderSummary[]>(`/api/providers/search?q=${encodeURIComponent(q)}`),
-  topProviders: (state?: string, limit = 25, offset = 0, sort_by = "total_paid") =>
+  topProviders: (state?: string, limit = 25, offset = 0, sort_by = "total_paid", excluded_only = false) =>
     get<ProviderSummary[]>(
-      `/api/providers/top?limit=${limit}&offset=${offset}&sort_by=${sort_by}${state ? `&state=${state}` : ""}`
+      `/api/providers/top?limit=${limit}&offset=${offset}&sort_by=${sort_by}${state ? `&state=${state}` : ""}${excluded_only ? "&excluded_only=true" : ""}`
     ),
   providerDetail: (npi: string) => get<ProviderDetail>(`/api/providers/${npi}`),
   providerTimeseries: (npi: string) =>
@@ -80,12 +80,14 @@ export const api = {
     month_from?: string;
     month_to?: string;
     limit?: number;
+    excluded_only?: boolean;
   }) => {
     const params = new URLSearchParams();
     if (opts?.state) params.set("state", opts.state);
     if (opts?.month_from) params.set("month_from", opts.month_from);
     if (opts?.month_to) params.set("month_to", opts.month_to);
     if (opts?.limit) params.set("limit", String(opts.limit));
+    if (opts?.excluded_only) params.set("excluded_only", "true");
     const qs = params.toString();
     return get<MapProvider[]>(`/api/map/providers${qs ? `?${qs}` : ""}`);
   },

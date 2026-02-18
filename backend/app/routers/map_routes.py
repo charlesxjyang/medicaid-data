@@ -31,8 +31,11 @@ def providers_json(
     month_from: Optional[str] = None,
     month_to: Optional[str] = None,
     limit: int = 5000,
+    excluded_only: bool = False,
 ):
     """Filtered provider map data as JSON (for filtered views)."""
+    from .providers import _has_oig_table
+
     db = get_db()
 
     conditions = []
@@ -46,6 +49,11 @@ def providers_json(
     if conditions:
         where += " AND " + " AND ".join(conditions)
 
+    has_oig = _has_oig_table(db)
+    oig_join = ""
+    if excluded_only and has_oig:
+        oig_join = "JOIN (SELECT DISTINCT npi FROM oig_exclusions) o ON o.npi = map_providers.npi"
+
     # If time filters are set, we need to re-aggregate from monthly data
     if month_from or month_to:
         time_conds = []
@@ -58,6 +66,10 @@ def providers_json(
 
         time_where = " AND ".join(time_conds)
 
+        oig_join_t = ""
+        if excluded_only and has_oig:
+            oig_join_t = "JOIN (SELECT DISTINCT npi FROM oig_exclusions) o ON o.npi = p.npi"
+
         # Rebuild from monthly aggregates with time filter
         rows = db.execute(f"""
             SELECT
@@ -67,6 +79,7 @@ def providers_json(
                 SUM(m.total_beneficiaries) AS total_beneficiaries
             FROM map_providers p
             JOIN agg_provider_monthly m ON m.npi = p.npi
+            {oig_join_t}
             WHERE p.lat IS NOT NULL AND p.lng IS NOT NULL
                 AND {time_where}
                 {"AND p.state = ?" if state else ""}
@@ -78,6 +91,7 @@ def providers_json(
         rows = db.execute(f"""
             SELECT npi, name, state, city, lat, lng, total_paid, total_claims, total_beneficiaries
             FROM map_providers
+            {oig_join}
             {where}
             ORDER BY total_paid DESC
             LIMIT ?

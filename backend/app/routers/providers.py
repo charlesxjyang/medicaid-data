@@ -83,6 +83,7 @@ def top_providers(
     limit: int = 25,
     offset: int = 0,
     sort_by: str = "total_paid",
+    excluded_only: bool = False,
 ):
     """Top providers by spending. Optionally filter by state."""
     allowed_sort = {"total_paid", "total_claims", "total_beneficiaries", "per_claim"}
@@ -93,36 +94,38 @@ def top_providers(
     has_oig = _has_oig_table(db)
 
     oig_select = ", (o.npi IS NOT NULL) AS is_excluded" if has_oig else ", FALSE AS is_excluded"
-    oig_join = "LEFT JOIN (SELECT DISTINCT npi FROM oig_exclusions) o ON o.npi = mp.npi" if has_oig else ""
+    if excluded_only and has_oig:
+        oig_join = "JOIN (SELECT DISTINCT npi FROM oig_exclusions) o ON o.npi = mp.npi"
+    elif has_oig:
+        oig_join = "LEFT JOIN (SELECT DISTINCT npi FROM oig_exclusions) o ON o.npi = mp.npi"
+    else:
+        oig_join = ""
 
     if sort_by == "per_claim":
         order_clause = "(mp.total_paid / NULLIF(mp.total_claims, 0)) DESC NULLS LAST, mp.npi"
     else:
         order_clause = f"mp.{sort_by} DESC, mp.npi"
 
+    conditions = []
+    params: list = []
     if state:
-        rows = db.execute(f"""
-            SELECT mp.npi, mp.name, mp.state, mp.city, mp.total_paid,
-                   mp.total_claims, mp.total_beneficiaries
-                   {oig_select}
-            FROM map_providers mp
-            {oig_join}
-            WHERE mp.state = ?
-            ORDER BY {order_clause}
-            LIMIT ?
-            OFFSET ?
-        """, [state, limit, offset]).fetchall()
-    else:
-        rows = db.execute(f"""
-            SELECT mp.npi, mp.name, mp.state, mp.city, mp.total_paid,
-                   mp.total_claims, mp.total_beneficiaries
-                   {oig_select}
-            FROM map_providers mp
-            {oig_join}
-            ORDER BY {order_clause}
-            LIMIT ?
-            OFFSET ?
-        """, [limit, offset]).fetchall()
+        conditions.append("mp.state = ?")
+        params.append(state)
+
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+    params += [limit, offset]
+
+    rows = db.execute(f"""
+        SELECT mp.npi, mp.name, mp.state, mp.city, mp.total_paid,
+               mp.total_claims, mp.total_beneficiaries
+               {oig_select}
+        FROM map_providers mp
+        {oig_join}
+        {where}
+        ORDER BY {order_clause}
+        LIMIT ?
+        OFFSET ?
+    """, params).fetchall()
     return [
         {
             "npi": r[0],

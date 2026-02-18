@@ -12,14 +12,14 @@ type SortKey = "total_paid" | "total_claims" | "per_claim";
 
 
 export function TopProviders() {
-  const { selectedState, setSelectedNpi } = useDashboard();
+  const { selectedState, setSelectedNpi, excludedOnly, setExcludedOnly } = useDashboard();
   const [sortKey, setSortKey] = useState<SortKey>("total_paid");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  // Re-fetch from backend when sort or state changes
+  // Re-fetch from backend when sort, state, or excluded filter changes
   const { data: items, loading } = useApi(
-    () => api.topProviders(selectedState ?? undefined, PRELOAD, 0, sortKey),
-    [selectedState, sortKey]
+    () => api.topProviders(selectedState ?? undefined, PRELOAD, 0, sortKey, excludedOnly),
+    [selectedState, sortKey, excludedOnly]
   );
 
   // Reset visible count when data changes
@@ -37,9 +37,24 @@ export function TopProviders() {
 
   return (
     <div className="table-panel">
-      <h4>Top Providers {selectedState ? `in ${selectedState}` : "(National)"}</h4>
+      <div className="table-panel-header">
+        <h4>
+          {excludedOnly ? "OIG Excluded Providers" : "Top Providers"}{" "}
+          {selectedState ? `in ${selectedState}` : "(National)"}
+        </h4>
+        <label className="excluded-toggle">
+          <input
+            type="checkbox"
+            checked={excludedOnly}
+            onChange={(e) => setExcludedOnly(e.target.checked)}
+          />
+          OIG Excluded Only
+        </label>
+      </div>
       {loading || !visible ? (
         <div className="table-skeleton" />
+      ) : visible.length === 0 ? (
+        <p className="no-results">No excluded providers found{selectedState ? ` in ${selectedState}` : ""}.</p>
       ) : (
         <>
           <table>

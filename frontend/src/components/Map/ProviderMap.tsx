@@ -21,7 +21,8 @@ const INITIAL_VIEW = {
 const MAP_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 
 const DOT_COLOR: [number, number, number] = [37, 99, 235];
-const HIGHLIGHT_COLOR: [number, number, number] = [255, 0, 0];
+const EXCLUDED_COLOR: [number, number, number] = [220, 38, 38]; // red
+const HIGHLIGHT_COLOR: [number, number, number] = [250, 204, 21]; // gold
 const PROCEDURE_COLOR: [number, number, number] = [234, 88, 12]; // orange
 
 // Linear scale: largest providers (~$500M) get ~30px, smallest get 2px
@@ -46,7 +47,7 @@ function detailToMapProvider(d: ProviderDetail): MapProvider | null {
 }
 
 export function ProviderMap() {
-  const { selectedState, selectedNpi, selectedProcedure, setSelectedNpi } = useDashboard();
+  const { selectedState, selectedNpi, selectedProcedure, excludedOnly, setSelectedNpi } = useDashboard();
   const [viewState, setViewState] = useState(INITIAL_VIEW);
   const [tooltip, setTooltip] = useState<{
     x: number;
@@ -56,8 +57,8 @@ export function ProviderMap() {
   } | null>(null);
 
   const { data, loading } = useApi(
-    () => api.mapProviders({ state: selectedState ?? undefined, limit: 5000 }),
-    [selectedState]
+    () => api.mapProviders({ state: selectedState ?? undefined, limit: excludedOnly ? 1000 : 5000, excluded_only: excludedOnly }),
+    [selectedState, excludedOnly]
   );
 
   const { data: procData } = useApi(
@@ -117,7 +118,7 @@ export function ProviderMap() {
   const layers = useMemo(() => {
     const result = [];
 
-    // Base layer: all providers (blue, dimmed when procedure is selected)
+    // Base layer: all providers (blue normally, red when showing excluded only)
     if (data) {
       result.push(
         new ScatterplotLayer<MapProvider>({
@@ -126,11 +127,12 @@ export function ProviderMap() {
           getPosition: (d) => [d.lng, d.lat],
           getRadius: (d) => radiusForPaid(d.total_paid),
           radiusUnits: "pixels" as const,
-          getFillColor: DOT_COLOR,
+          getFillColor: excludedOnly ? EXCLUDED_COLOR : DOT_COLOR,
           pickable: !selectedProcedure,
-          opacity: selectedProcedure ? 0.15 : 0.6,
+          opacity: selectedProcedure ? 0.15 : excludedOnly ? 0.8 : 0.6,
           updateTriggers: {
-            opacity: [selectedProcedure],
+            opacity: [selectedProcedure, excludedOnly],
+            getFillColor: [excludedOnly],
           },
           onClick: ({ object }) => {
             if (object) setSelectedNpi(object.npi);
@@ -180,7 +182,7 @@ export function ProviderMap() {
             getRadius: 14,
             radiusUnits: "pixels" as const,
             getFillColor: HIGHLIGHT_COLOR,
-            getLineColor: [255, 255, 255],
+            getLineColor: [0, 0, 0],
             getLineWidth: 2,
             stroked: true,
             lineWidthUnits: "pixels" as const,
@@ -196,7 +198,7 @@ export function ProviderMap() {
     }
 
     return result;
-  }, [data, procData, selectedNpi, selectedDetail, selectedProcedure, setSelectedNpi]);
+  }, [data, procData, selectedNpi, selectedDetail, selectedProcedure, excludedOnly, setSelectedNpi]);
 
   return (
     <div className="map-container">

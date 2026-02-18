@@ -4,12 +4,14 @@ export interface DashboardState {
   selectedState: string | null;
   selectedNpi: string | null;
   selectedProcedure: string | null;
+  excludedOnly: boolean;
 }
 
 export interface DashboardActions {
   setSelectedState: (state: string | null) => void;
   setSelectedNpi: (npi: string | null) => void;
   setSelectedProcedure: (code: string | null) => void;
+  setExcludedOnly: (v: boolean) => void;
 }
 
 export type DashboardContextType = DashboardState & DashboardActions;

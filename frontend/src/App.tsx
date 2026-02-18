@@ -45,6 +45,7 @@ function App() {
   const [selectedState, setSelectedState] = useState<string | null>(initial.state);
   const [selectedNpi, setSelectedNpi] = useState<string | null>(initial.npi);
   const [selectedProcedure, setSelectedProcedure] = useState<string | null>(initial.procedure);
+  const [excludedOnly, setExcludedOnly] = useState(false);
 
   // Sync URL on popstate (back/forward)
   useEffect(() => {
@@ -72,6 +73,7 @@ function App() {
     selectedState,
     selectedNpi,
     selectedProcedure,
+    excludedOnly,
     setSelectedState: (state: string | null) => {
       setSelectedState(state);
       pushUrl(selectedNpi, selectedProcedure, state);
@@ -86,6 +88,7 @@ function App() {
       if (code) setSelectedNpi(null);
       pushUrl(code ? null : selectedNpi, code, selectedState);
     },
+    setExcludedOnly,
   };
 
   return (

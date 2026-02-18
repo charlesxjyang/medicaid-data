@@ -440,6 +440,34 @@ tbody td {
 }
 
 /* OIG Exclusion */
+.table-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.table-panel-header h4 {
+  margin: 0;
+}
+.excluded-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #b91c1c;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.excluded-toggle input {
+  accent-color: #b91c1c;
+}
+.no-results {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 16px 0;
+}
 .excluded-tag {
   display: inline-block;
   font-size: 9px;
